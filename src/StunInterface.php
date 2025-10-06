@@ -15,5 +15,5 @@ use Psr\Log\LoggerInterface;
 
 interface StunInterface extends IceConnectionProtocolInterface
 {
-    public static function create(ReceiverInterface $receiver, string $host, LoggerInterface $logger, int $port = 0): StunInterface;
+    public static function create(ReceiverInterface $receiver, string $host, LoggerInterface $logger, ?array $portRange): StunInterface;
 }

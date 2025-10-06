@@ -56,6 +56,7 @@ class Stun extends Datagram implements StunInterface
         $this->id = Uuid::uuid4()->toString();
     }
 
+
     /**
      * Handle received messages
      *
@@ -162,17 +163,21 @@ class Stun extends Datagram implements StunInterface
      * @param ReceiverInterface $receiver Message receiver handler
      * @param string $host Host address to bind to
      * @param LoggerInterface|null $logger Optional PSR-3 logger
-     * @param int $port Port number to bind to (0 for random port)
+     * @param array|null $portRange
      * @return StunInterface
-     * @throws RuntimeException If binding fails
      */
     public static function create(
         ReceiverInterface $receiver,
         string $host,
         ?LoggerInterface $logger = null,
-        int $port = 0
+        ?array $portRange = null
     ): StunInterface {
         $factory = new Factory();
+        $port = 0;
+        if ($portRange) {
+            $port = self::getRandomPort($portRange, $host);
+        }
+
         try {
             $socket = await($factory->createServer("$host:$port"));
             return new static($receiver, $socket, $logger);
@@ -183,5 +188,35 @@ class Stun extends Datagram implements StunInterface
                 $e
             );
         }
+    }
+
+    /**
+     * Get a random available port within a given range
+     *
+     * @param array $portRange Array containing [minPort, maxPort]
+     * @param string $host Host address to test binding
+     * @return int
+     * @throws RuntimeException If no available port is found
+     */
+    private static function getRandomPort(array $portRange, string $host): int
+    {
+        [$min, $max] = $portRange;
+
+        if ($min < 1 || $max > 65535 || $min > $max) {
+            throw new InvalidArgumentException("Invalid port range [$min, $max]");
+        }
+
+        $ports = range($min, $max);
+        shuffle($ports);
+
+        foreach ($ports as $port) {
+            $socket = @stream_socket_server("udp://$host:$port", $errno, $errstr);
+            if ($socket) {
+                fclose($socket);
+                return $port;
+            }
+        }
+
+        throw new RuntimeException("No available ports found in range [$min, $max]");
     }
 }
