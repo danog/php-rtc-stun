@@ -271,10 +271,12 @@ class MessageAttributeEncoder
      */
     public function packUnsigned64(): string
     {
-        $data = gmp_init($this->data, 10);
-        $high = gmp_intval(gmp_div_q($data, gmp_init('0x100000000')));
-        $low = gmp_intval(gmp_mod($data, gmp_init('0x100000000')));
-        return pack('NN', $high, $low);
+        // Parsed as an unsigned 64-bit value: the raw bit pattern is what goes on the wire,
+        // even when it does not fit in a signed PHP integer.
+        $data = \is_string($this->data) && $this->data[0] !== '-' && (float) $this->data > (float) PHP_INT_MAX
+            ? (int) sprintf('%.0f', (float) $this->data)
+            : (int) $this->data;
+        return pack('NN', ($data >> 32) & 0xFFFFFFFF, $data & 0xFFFFFFFF);
     }
 
     /**
@@ -285,9 +287,8 @@ class MessageAttributeEncoder
     public function unpackUnsigned64(): string
     {
         $result = unpack('N2', $this->data);
-        $high = gmp_init($result[1]);
-        $low = gmp_init($result[2]);
-        return gmp_strval(gmp_add(gmp_mul($high, gmp_init('0x100000000')), $low));
+        // %u renders the unsigned interpretation of the raw 64-bit pattern.
+        return sprintf('%u', ((int) $result[1] << 32) | (int) $result[2]);
     }
 
     /**
