@@ -71,7 +71,7 @@ abstract class Datagram extends BaseProtocol
                     // binding request may itself start a transaction and wait for its reply —
                     // and doing that inline stops this loop from reading, so the very replies
                     // being waited on never arrive and every transaction times out.
-                    async(fn () => $this->onReceived($data, (string) $address))->ignore();
+                    async(fn () => $this->onReceived($data, $this->formatAddress($address)))->ignore();
                 }
 
                 $this->onClose();
@@ -214,6 +214,18 @@ abstract class Datagram extends BaseProtocol
 
         $this->localHost = $address->getAddress();
         $this->localPort = $address->getPort();
+    }
+
+    /**
+     * Render a peer address the way the rest of the stack writes them.
+     *
+     * InternetAddress brackets IPv6 hosts, while candidates are carried as a plain
+     * "host:port" join. Reporting the bracketed form makes every IPv6 connectivity check
+     * look like it came from the wrong source and fail its address validation.
+     */
+    private function formatAddress(InternetAddress $address): string
+    {
+        return $address->getAddress() . ':' . $address->getPort();
     }
 
     /**
