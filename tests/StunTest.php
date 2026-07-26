@@ -16,7 +16,7 @@ use Webrtc\STUN\Stun;
 use PHPUnit\Framework\TestCase;
 use Webrtc\STUN\Transaction;
 use Webrtc\STUN\Utils;
-use function React\Async\delay;
+use function Amp\delay;
 
 #[UsesClass(Message::class)]
 #[UsesClass(Transaction::class)]

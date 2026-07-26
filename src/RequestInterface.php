@@ -11,12 +11,16 @@
 
 namespace Webrtc\STUN;
 
-use React\Promise\PromiseInterface;
 use Webrtc\STUN\Message\MessageInterface;
 
 interface RequestInterface
 {
     public function sendMessage(MessageInterface $message, ?string $address): void;
 
-    public function request(MessageInterface $message, ?string $address, ?string $integrity_key, int $retransmissions = 0): PromiseInterface;
+    /**
+     * Send a request and wait for its response.
+     *
+     * @return array{MessageInterface, string|null} The response and where it came from.
+     */
+    public function request(MessageInterface $message, ?string $address, ?string $integrity_key, int $retransmissions = 0): array;
 }

@@ -16,7 +16,6 @@ use Webrtc\STUN\Message\MessageAttributeCollection;
 use Webrtc\STUN\Stun;
 use Webrtc\STUN\Transaction;
 use PHPUnit\Framework\TestCase;
-use function React\Async\await;
 
 #[UsesClass(TransactionTimeoutException::class)]
 #[UsesClass(Message::class)]
@@ -41,7 +40,7 @@ class TransactionTest extends TestCase
         $transaction = new Transaction($message, "127.0.0.1:2365", $this->stun ,0);
 
         $this->expectException(TransactionTimeoutException::class);
-        await($transaction->execute());
+        $transaction->execute();
     }
 
     public function testTransactionReceive()
@@ -50,7 +49,7 @@ class TransactionTest extends TestCase
         $transaction = new Transaction($message, "127.0.0.1:2365", $this->stun);
 
         $transaction->responseReceived($message, "127.0.0.1:2365");
-        $response = await($transaction->getDeferred()->promise());
+        $response = $transaction->getDeferred()->getFuture()->await();
         $this->assertEquals($message, $response[0]);
     }
 

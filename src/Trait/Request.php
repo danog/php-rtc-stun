@@ -11,7 +11,6 @@
 
 namespace Webrtc\STUN\Trait;
 
-use React\Promise\PromiseInterface;
 use Webrtc\Exception\InvalidArgumentException;
 use Webrtc\STUN\Message\MessageInterface;
 use Webrtc\STUN\Transaction;
@@ -47,7 +46,7 @@ trait Request
      * @param string|null $address The target address (optional)
      * @param string|null $integrityKey The key for message integrity (optional)
      * @param int $retransmissions Number of retransmission attempts (default: 0)
-     * @return PromiseInterface Promise that resolves when transaction completes
+     * @return array{MessageInterface, string|null} The response and where it came from.
      * @throws InvalidArgumentException If the message transaction is already pending
      */
     public function request(
@@ -55,7 +54,7 @@ trait Request
         ?string $address = null,
         ?string $integrityKey = null,
         int $retransmissions = 0
-    ): PromiseInterface {
+    ): array {
         if (isset($this->transactionIds[$message->getTransactionId()])) {
             throw new InvalidArgumentException("The message is in pending");
         }

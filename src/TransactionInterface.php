@@ -11,7 +11,6 @@
 
 namespace Webrtc\STUN;
 
-use React\Promise\PromiseInterface;
 use Webrtc\STUN\Message\Message;
 use Webrtc\STUN\Message\MessageInterface;
 
@@ -19,5 +18,10 @@ interface TransactionInterface
 {
     public function responseReceived(MessageInterface $message, ?string $address): void;
 
-    public function execute(): PromiseInterface;
+    /**
+     * Send the request and wait for its response.
+     *
+     * @return array{MessageInterface, string|null} The response and where it came from.
+     */
+    public function execute(): array;
 }

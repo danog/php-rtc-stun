@@ -11,35 +11,21 @@
 
 namespace Webrtc\STUN;
 
-use React\Datagram\Socket;
-use React\Datagram\SocketInterface;
+use Amp\Socket\InternetAddress;
+use Amp\Socket\Socket;
+use Amp\Socket\UdpSocket;
 use Throwable;
-use Webrtc\Mixin\EventForwarder;
-use function call_user_func_array;
-use function parse_url;
+use function Amp\async;
 
 /**
  * User Datagram Protocol
  *
  * Handles the UDP communication for WebRTC.
- * Provides an abstraction layer over ReactPHP's Datagram socket with additional WebRTC-specific functionality.
  *
- * @mixin Socket
  * @see https://datatracker.ietf.org/doc/html/rfc768 User Datagram Protocol
  */
 abstract class Datagram extends BaseProtocol
 {
-    use EventForwarder;
-
-    /**
-     * @var array<string, string> Map of socket events to corresponding handler methods
-     */
-    private const FORWARD_EVENT_METHOD_MAP = [
-        "message" => "onReceived",
-        "error" => "onError",
-        "close" => "onClose"
-    ];
-
     /** @var string The remote address for communication */
     protected string $remoteAddress;
 
@@ -49,15 +35,46 @@ abstract class Datagram extends BaseProtocol
     /** @var int The local port number */
     private int $localPort;
 
+    /** Whether the receive loop should keep delivering datagrams. */
+    private bool $paused = false;
+
     /**
      * Datagram constructor.
      *
-     * @param SocketInterface $socket The socket interface to use for UDP communication
+     * @param UdpSocket $socket The socket to use for UDP communication
      */
-    public function __construct(protected SocketInterface $socket)
+    public function __construct(protected UdpSocket $socket)
     {
-        $this->forwardEvents2Methods($this->socket, self::FORWARD_EVENT_METHOD_MAP);
         $this->parseLocalAddress();
+        $this->listen();
+    }
+
+    /**
+     * Deliver incoming datagrams to onReceived() until the socket closes.
+     *
+     * Reading runs in its own fiber rather than through an event emitter: the socket hands
+     * over one datagram per receive() call, so the loop is the natural shape and errors
+     * propagate to onError() instead of an unobserved rejection.
+     */
+    private function listen(): void
+    {
+        async(function (): void {
+            try {
+                while (($received = $this->socket->receive()) !== null) {
+                    [$address, $data] = $received;
+
+                    if ($this->paused) {
+                        continue;
+                    }
+
+                    $this->onReceived($data, (string) $address);
+                }
+
+                $this->onClose();
+            } catch (Throwable $e) {
+                $this->onError($e);
+            }
+        });
     }
 
     /**
@@ -69,7 +86,10 @@ abstract class Datagram extends BaseProtocol
      */
     public function send(string $data, ?string $remoteAddress = null): void
     {
-        $this->socket->send($data, $remoteAddress ?? $this->remoteAddress);
+        $this->socket->send(
+            InternetAddress::fromString($this->stripScheme($remoteAddress ?? $this->remoteAddress)),
+            $data
+        );
     }
 
     /**
@@ -83,33 +103,36 @@ abstract class Datagram extends BaseProtocol
     }
 
     /**
-     * End the UDP socket gracefully after flushing write buffer
+     * Close the UDP socket.
+     *
+     * A datagram socket has no write buffer to drain, so this is the same as close(); it is
+     * kept because callers written against the previous stream-shaped API still use it.
      *
      * @return void
      */
     public function end(): void
     {
-        $this->socket->end();
+        $this->close();
     }
 
     /**
-     * Resume reading from the socket
+     * Resume delivering received datagrams
      *
      * @return void
      */
     public function resume(): void
     {
-        $this->socket->resume();
+        $this->paused = false;
     }
 
     /**
-     * Pause reading from the socket
+     * Stop delivering received datagrams
      *
      * @return void
      */
     public function pause(): void
     {
-        $this->socket->pause();
+        $this->paused = true;
     }
 
     /**
@@ -119,7 +142,7 @@ abstract class Datagram extends BaseProtocol
      */
     public function getLocalAddress(): string
     {
-        return $this->socket->getLocalAddress();
+        return (string) $this->socket->getAddress();
     }
 
     /**
@@ -149,7 +172,7 @@ abstract class Datagram extends BaseProtocol
      */
     public function getRemoteAddress(): ?string
     {
-        return $this->socket->getRemoteAddress();
+        return $this->remoteAddress ?? null;
     }
 
     /**
@@ -177,45 +200,26 @@ abstract class Datagram extends BaseProtocol
     protected abstract function onClose(): void;
 
     /**
-     * Check if an argument is an instance of Datagram or Socket
-     *
-     * @param mixed $argument The argument to check
-     * @return Datagram|Socket Returns $this if argument is instanceof $this->socket, otherwise returns the argument
-     */
-    private function isInstanceofArgument(mixed $argument): Datagram|Socket
-    {
-        return ($argument instanceof $this->socket) ? $this : $argument;
-    }
-
-    /**
-     * Magic method to delegate calls to the underlying socket
-     *
-     * @param string $method The method name to call
-     * @param array $parameters The method parameters
-     * @return Datagram|Socket
-     */
-    public function __call(string $method, array $parameters)
-    {
-        return $this->isInstanceofArgument(
-            call_user_func_array([$this->socket, $method], $parameters)
-        );
-    }
-
-    /**
      * Parse and store the local address components (host and port)
      *
      * @return void
      */
     private function parseLocalAddress(): void
     {
-        $address = $this->socket->getLocalAddress();
+        $address = $this->socket->getAddress();
 
-        if (!str_contains($address, '://')) {
-            $address = 'udp://' . $address;
-        }
-        $address = parse_url($address);
+        $this->localHost = $address->getAddress();
+        $this->localPort = $address->getPort();
+    }
 
-        $this->localHost = $address['host'];
-        $this->localPort = $address['port'];
+    /**
+     * Addresses are passed around as plain "host:port" here, but callers sometimes carry the
+     * scheme along, and InternetAddress will not parse it.
+     */
+    private function stripScheme(string $address): string
+    {
+        $separator = strpos($address, '://');
+
+        return $separator === false ? $address : substr($address, $separator + 3);
     }
 }

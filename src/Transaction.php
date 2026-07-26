@@ -11,10 +11,8 @@
 
 namespace Webrtc\STUN;
 
-use React\EventLoop\Loop;
-use React\EventLoop\LoopInterface;
-use React\Promise\Deferred;
-use React\Promise\PromiseInterface;
+use Amp\DeferredFuture;
+use Revolt\EventLoop;
 use Webrtc\STUN\Enum\MessageClass;
 use Webrtc\STUN\Exception\TransactionFailedException;
 use Webrtc\STUN\Exception\TransactionTimeoutException;
@@ -31,14 +29,16 @@ class Transaction implements TransactionInterface
     private const RETRY_MAX = 5;
     private const RETRY_RTO = 0.5;
     private ?string $address;
-    private Deferred $deferred;
+    private DeferredFuture $deferred;
     private MessageInterface $message;
     private float $timeoutDelay;
     private BaseProtocolInterface $transport;
     private int $tries = 0;
     private int $triesMax;
-    private LoopInterface $loop;
     private bool $isResolvedOrReject = false;
+
+    /** Handle of the pending retransmission timer, so it can be cancelled once we are done. */
+    private ?string $timer = null;
 
     /**
      * Transaction constructor.
@@ -51,12 +51,11 @@ class Transaction implements TransactionInterface
     public function __construct(MessageInterface $message, ?string $address, BaseProtocolInterface $transport, ?int $retransmissions = null)
     {
         $this->address = $address;
-        $this->deferred = new Deferred();
+        $this->deferred = new DeferredFuture();
         $this->message = $message;
         $this->timeoutDelay = self::RETRY_RTO;
         $this->transport = $transport;
         $this->triesMax = 1 + ($retransmissions ?? self::RETRY_MAX);
-        $this->loop = Loop::get();
     }
 
     /**
@@ -67,26 +66,32 @@ class Transaction implements TransactionInterface
      */
     public function responseReceived(MessageInterface $message, ?string $address): void
     {
-        if (!$this->isResolvedOrReject) {
-            $this->isResolvedOrReject = true;
-            unset($this->transport->transactionIds[$message->getTransactionId()]);
-            if ($message->getMessageClass() === MessageClass::RESPONSE) {
-                $this->deferred->resolve([$message, $address]);
-            } else {
-                $this->deferred->reject(new TransactionFailedException($message));
-            }
+        if ($this->isResolvedOrReject) {
+            return;
+        }
+
+        $this->settle();
+        unset($this->transport->transactionIds[$message->getTransactionId()]);
+
+        if ($message->getMessageClass() === MessageClass::RESPONSE) {
+            $this->deferred->complete([$message, $address]);
+        } else {
+            $this->deferred->error(new TransactionFailedException($message));
         }
     }
 
     /**
-     * Run the transaction.
+     * Run the transaction and wait for its response.
      *
-     * @return PromiseInterface The promise resolving the transaction result.
+     * @return array{MessageInterface, string|null} The response and where it came from.
+     * @throws TransactionFailedException If the peer answered with an error response.
+     * @throws TransactionTimeoutException If no answer arrived before the retries ran out.
      */
-    public function execute(): PromiseInterface
+    public function execute(): array
     {
         $this->trySend();
-        return $this->deferred->promise();
+
+        return $this->deferred->getFuture()->await();
     }
 
     /**
@@ -95,12 +100,17 @@ class Transaction implements TransactionInterface
     private function trySend(): void
     {
         if ($this->tries >= $this->triesMax) {
-            $this->deferred->reject(new TransactionTimeoutException);
+            $this->settle();
+            $this->deferred->error(new TransactionTimeoutException);
+
             return;
         }
 
         $this->transport->sendMessage($this->message, $this->address);
-        $this->loop->addTimer($this->timeoutDelay, function (): void {
+
+        $this->timer = EventLoop::delay($this->timeoutDelay, function (): void {
+            $this->timer = null;
+
             if (!$this->isResolvedOrReject) {
                 $this->trySend();
             }
@@ -111,9 +121,25 @@ class Transaction implements TransactionInterface
     }
 
     /**
-     * @return Deferred
+     * Mark the transaction finished and stop any pending retransmission.
+     *
+     * A timer left armed keeps the event loop alive and would retransmit a request that has
+     * already been answered.
      */
-    public function getDeferred(): Deferred
+    private function settle(): void
+    {
+        $this->isResolvedOrReject = true;
+
+        if ($this->timer !== null) {
+            EventLoop::cancel($this->timer);
+            $this->timer = null;
+        }
+    }
+
+    /**
+     * @return DeferredFuture
+     */
+    public function getDeferred(): DeferredFuture
     {
         return $this->deferred;
     }

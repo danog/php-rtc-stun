@@ -14,8 +14,7 @@ namespace Webrtc\STUN;
 use Psr\Log\LoggerInterface;
 use Ramsey\Uuid\Uuid;
 use Random\RandomException;
-use React\Datagram\Factory;
-use React\Datagram\SocketInterface;
+use Amp\Socket\UdpSocket;
 use Throwable;
 use Webrtc\Exception\InvalidArgumentException;
 use Webrtc\Exception\RuntimeException;
@@ -23,7 +22,7 @@ use Webrtc\STUN\Enum\MessageClass;
 use Webrtc\STUN\Message\Message;
 use Webrtc\STUN\Message\MessageInterface;
 use Webrtc\STUN\Trait\Request;
-use function React\Async\await;
+use function Amp\Socket\bindUdpSocket;
 
 /**
  * STUN (Session Traversal Utilities for NAT) Protocol Implementation
@@ -44,12 +43,12 @@ class Stun extends Datagram implements StunInterface
      * Constructor
      *
      * @param ReceiverInterface $receiver Message receiver handler
-     * @param SocketInterface $socket Datagram socket interface
+     * @param UdpSocket $socket Datagram socket
      * @param LoggerInterface|null $logger Optional PSR-3 logger
      */
     public function __construct(
         private readonly ReceiverInterface $receiver,
-        SocketInterface $socket,
+        UdpSocket $socket,
         private readonly ?LoggerInterface $logger = null
     ) {
         parent::__construct($socket);
@@ -172,14 +171,13 @@ class Stun extends Datagram implements StunInterface
         ?LoggerInterface $logger = null,
         ?array $portRange = null
     ): StunInterface {
-        $factory = new Factory();
         $port = 0;
         if ($portRange) {
             $port = self::getRandomPort($portRange, $host);
         }
 
         try {
-            $socket = await($factory->createServer("$host:$port"));
+            $socket = bindUdpSocket("$host:$port");
             return new static($receiver, $socket, $logger);
         } catch (Throwable $e) {
             throw new RuntimeException(
