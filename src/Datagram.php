@@ -34,7 +34,7 @@ abstract class Datagram extends BaseProtocol
     /**
      * @var array<string, string> Map of socket events to corresponding handler methods
      */
-    private const array FORWARD_EVENT_METHOD_MAP = [
+    private const FORWARD_EVENT_METHOD_MAP = [
         "message" => "onReceived",
         "error" => "onError",
         "close" => "onClose"

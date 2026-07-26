@@ -20,11 +20,11 @@ use Webrtc\STUN\Enum\MessageAttribute;
  */
 class MessageAttributeEncoder
 {
-    public const int COOKIE = 0x2112A442;
-    private const int IPV4_PROTOCOL = 1;
-    private const int IPV6_PROTOCOL = 2;
+    public const COOKIE = 0x2112A442;
+    private const IPV4_PROTOCOL = 1;
+    private const IPV6_PROTOCOL = 2;
 
-    private const array ATTRIBUTES = [
+    private const ATTRIBUTES = [
         [MessageAttribute::MAPPED_ADDRESS, 'packAddress', 'unpackAddress'],
         [MessageAttribute::CHANGE_REQUEST, 'packUnsigned', 'unpackUnsigned'],
         [MessageAttribute::SOURCE_ADDRESS, 'packAddress', 'unpackAddress'],

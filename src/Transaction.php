@@ -28,8 +28,8 @@ use Webrtc\STUN\Message\MessageInterface;
  */
 class Transaction implements TransactionInterface
 {
-    private const int RETRY_MAX = 5;
-    private const float RETRY_RTO = 0.5;
+    private const RETRY_MAX = 5;
+    private const RETRY_RTO = 0.5;
     private ?string $address;
     private Deferred $deferred;
     private MessageInterface $message;

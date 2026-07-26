@@ -16,10 +16,10 @@ namespace Webrtc\STUN\Message;
  */
 class MessageIntegrity
 {
-    public const int HEADER_LENGTH = 20;
-    private const int INTEGRITY_LENGTH = 24;
-    private const int FINGERPRINT_LENGTH = 8;
-    private const int FINGERPRINT_XOR = 0x5354554E;
+    public const HEADER_LENGTH = 20;
+    private const INTEGRITY_LENGTH = 24;
+    private const FINGERPRINT_LENGTH = 8;
+    private const FINGERPRINT_XOR = 0x5354554E;
 
     /**
      * Set the body length in the message data.
