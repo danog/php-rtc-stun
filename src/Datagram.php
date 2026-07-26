@@ -67,7 +67,11 @@ abstract class Datagram extends BaseProtocol
                         continue;
                     }
 
-                    $this->onReceived($data, (string) $address);
+                    // Dispatch in its own fiber. Handling a datagram can block — answering a
+                    // binding request may itself start a transaction and wait for its reply —
+                    // and doing that inline stops this loop from reading, so the very replies
+                    // being waited on never arrive and every transaction times out.
+                    async(fn () => $this->onReceived($data, (string) $address))->ignore();
                 }
 
                 $this->onClose();
