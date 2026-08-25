@@ -1,9 +1,15 @@
 # STUN Library for PHP
 
-[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.4-blue.svg)](https://php.net/)
+[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.2-blue.svg)](https://php.net/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A PHP library for STUN (Session Traversal Utilities for NAT) protocol, enabling NAT discovery and reflexive address retrieval for ICE connectivity in WebRTC applications.
+
+## About this fork
+
+This is the `danog/php-rtc-stun` fork used by MadelineProto. It targets PHP 8.2+ and replaces ReactPHP with Amp v3 UDP sockets, blocking fiber APIs, and Revolt retransmission timers. Receive handlers run in separate fibers to avoid deadlocks, and IPv6 peer addresses are normalized for ICE validation.
+
+The forked stack keeps the upstream `quasarstream/*` dependency constraints for compatibility. Each `danog/php-rtc-*` package replaces its upstream counterpart, so consumers select the complete maintained stack by requiring the corresponding danog packages together.
 
 ##  Features
 
@@ -14,7 +20,7 @@ A PHP library for STUN (Session Traversal Utilities for NAT) protocol, enabling 
 
 ## Requirements
 
-- PHP ≥ 8.4
+- PHP ≥ 8.2
 
 ## Documentation
 

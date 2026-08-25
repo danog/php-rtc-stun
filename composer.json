@@ -1,7 +1,7 @@
 {
     "name": "danog/php-rtc-stun",
     "type": "library",
-    "description": "A PHP library for STUN (Session Traversal Utilities for NAT) protocol, enabling NAT discovery and reflexive address retrieval for ICE connectivity in WebRTC applications. Fork with FFI made optional and a pure-PHP DTLS/SRTP stack, maintained for MadelineProto.",
+    "description": "STUN transactions and NAT discovery for PHP, ported to Amp v3 sockets and fibers. MadelineProto's PHP 8.2+ fork supports the modular danog/php-rtc stack.",
     "keywords": [
         "webrtc",
         "stun",
