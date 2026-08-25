@@ -27,8 +27,8 @@
         "php": "^8.2",
         "amphp/amp": "^3.1",
         "amphp/socket": "^2.3",
-        "quasarstream/exception": "^1.0",
-        "quasarstream/mixin": "^1.0",
+        "danog/php-rtc-exception": "^1.0",
+        "danog/php-rtc-mixin": "^1.0",
         "ramsey/uuid": "^4.7",
         "psr/log": "^3.0"
     },
@@ -47,8 +47,5 @@
             "Tests\\Webrtc\\STUN\\": "tests"
         }
     },
-    "minimum-stability": "dev",
-    "replace": {
-        "quasarstream/stun": "self.version"
-    }
+    "minimum-stability": "dev"
 }
