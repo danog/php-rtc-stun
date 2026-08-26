@@ -91,11 +91,7 @@ final class MessageAttributeEncoder
         string $transactionId
     ): array
     {
-        $attribute = MessageAttribute::fromName($attrName);
-
-        if ($attribute === null) {
-            throw new InvalidArgumentException("Invalid attribute name: $attrName");
-        }
+        $attribute = MessageAttribute::{$attrName};
 
         $packed = match (self::CODECS[$attribute->value]) {
             self::CODEC_ADDRESS => self::packAddress($data),
