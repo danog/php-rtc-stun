@@ -102,7 +102,24 @@ class MessageAttributeEncoderTest extends TestCase
         $this->encoderDecoder(['192.0.2.1', 32853], "packXorAddress", $transactionId);
     }
 
-    private function encoderDecoder(string|array|InternetAddress $data, string $method, string $transactionId = "")
+    public function testPackAndUnpackSigned64(): void
+    {
+        $values = [
+            0 => '0000000000000000',
+            1 => '0000000000000001',
+            -1 => 'ffffffffffffffff',
+            PHP_INT_MAX => '7fffffffffffffff',
+            PHP_INT_MIN => '8000000000000000',
+        ];
+
+        foreach ($values as $value => $hex) {
+            $packed = $this->encoderDecoder($value, 'packUnsigned64');
+            $this->assertSame($hex, bin2hex($packed));
+            $this->assertSame($value, $this->encoderDecoder($packed, 'unpackUnsigned64'));
+        }
+    }
+
+    private function encoderDecoder(int|string|array|InternetAddress $data, string $method, string $transactionId = "")
     {
         $attributeEncoder = new MessageAttributeEncoder($data, $transactionId);
         return $attributeEncoder->$method();

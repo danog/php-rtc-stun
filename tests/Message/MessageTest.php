@@ -91,7 +91,7 @@ class MessageTest extends TestCase
         $this->assertEquals(
             [
                 'USERNAME' => 'sw7YvCSbcVex3bhi:AYeZ',
-                'ICE_CONTROLLING' => '5943294521425135761',
+                'ICE_CONTROLLING' => 5943294521425135761,
                 'USE_CANDIDATE' => null,
                 'PRIORITY' => 1853759231,
                 'MESSAGE_INTEGRITY' => hex2bin("c87b58eccbacdbc075d497ad0c965a82937ab587"),

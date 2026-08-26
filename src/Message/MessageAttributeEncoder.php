@@ -58,11 +58,11 @@ class MessageAttributeEncoder
     /**
      * MessageAttributeEncoder constructor.
      *
-     * @param string|array|InternetAddress|null $data The message data.
+     * @param int|string|array|InternetAddress|null $data The message data.
      * @param string $transactionId The transaction ID.
      */
     public function __construct(
-        private readonly string|array|InternetAddress|null $data,
+        private readonly int|string|array|InternetAddress|null $data,
         private readonly string $transactionId
     )
     {
@@ -271,43 +271,36 @@ class MessageAttributeEncoder
     }
 
     /**
-     * Pack a 64-bit unsigned integer into a string.
+     * Pack a signed 64-bit integer in network byte order.
      *
      * @return string The packed 64-bit unsigned integer.
      */
     public function packUnsigned64(): string
     {
-        // Parsed as an unsigned 64-bit value: the raw bit pattern is what goes on the wire,
-        // even when it does not fit in a signed PHP integer.
-        $data = \is_string($this->data) && $this->data[0] !== '-' && (float) $this->data > (float) PHP_INT_MAX
-            ? (int) sprintf('%.0f', (float) $this->data)
-            : (int) $this->data;
-        return pack('NN', ($data >> 32) & 0xFFFFFFFF, $data & 0xFFFFFFFF);
+        return pack('J', $this->data);
     }
 
     /**
-     * Unpack a 64-bit unsigned integer from the data.
+     * Unpack a signed 64-bit integer in network byte order.
      *
-     * @return string The unpacked 64-bit unsigned integer as a string.
+     * @return int The unpacked signed 64-bit integer.
      */
-    public function unpackUnsigned64(): string
+    public function unpackUnsigned64(): int
     {
-        $result = unpack('N2', $this->data);
-        // %u renders the unsigned interpretation of the raw 64-bit pattern.
-        return sprintf('%u', ((int) $result[1] << 32) | (int) $result[2]);
+        return unpack('J', $this->data)[1];
     }
 
     /**
      * Encode an attribute by name.
      *
      * @param string $attrName The name of the attribute to encode.
-     * @param string|array|InternetAddress|null $data The data to encode.
+     * @param int|string|array|InternetAddress|null $data The data to encode.
      * @param string $transactionId The transaction ID.
      * @return array The encoded attribute type and value.
      */
     public static function encode(
         string $attrName,
-        string|array|InternetAddress|null $data,
+        int|string|array|InternetAddress|null $data,
         string $transactionId
     ): array
     {
@@ -331,14 +324,14 @@ class MessageAttributeEncoder
      * Get the encoded or decoded attribute.
      *
      * @param string $attr The attribute to encode or decode.
-     * @param string|array|InternetAddress|null $data The data to encode or decode.
+     * @param int|string|array|InternetAddress|null $data The data to encode or decode.
      * @param string $transactionId The transaction ID.
      * @param bool $decode Flag to indicate decoding.
      * @return array The attribute type and encoded or decoded value.
      */
     private static function getEncode(
         string $attr,
-        string|array|InternetAddress|null $data,
+        int|string|array|InternetAddress|null $data,
         string $transactionId,
         bool $decode = false
     ): array
