@@ -7,7 +7,7 @@ A PHP library for STUN (Session Traversal Utilities for NAT) protocol, enabling 
 
 ## About this fork
 
-This is the `danog/php-rtc-stun` fork used by MadelineProto. It targets PHP 8.2+ and replaces ReactPHP with Amp v3 UDP sockets, blocking fiber APIs, and Revolt retransmission timers. Receive handlers run in separate fibers to avoid deadlocks, and IPv6 peer addresses are normalized for ICE validation.
+This is the `danog/php-rtc-stun` fork used by MadelineProto. It targets PHP 8.2+ and replaces ReactPHP with Amp v3 UDP sockets, blocking fiber APIs, and Revolt retransmission timers. Receive handlers run in separate fibers to avoid deadlocks, and socket addresses remain `Amp\Socket\InternetAddress` objects throughout the library.
 
 All internal Composer dependencies use their `danog/php-rtc-*` package names directly, so installing a component selects the maintained danog packages throughout the dependency graph.
 
@@ -21,6 +21,10 @@ All internal Composer dependencies use their `danog/php-rtc-*` package names dir
 ## Requirements
 
 - PHP ≥ 8.2
+
+## Address API
+
+All socket endpoints passed to or returned by the library use `Amp\Socket\InternetAddress`. This includes local and remote transport addresses, STUN request destinations, response source addresses, receiver callbacks, and address-valued STUN message attributes. Strings and `[host, port]` arrays are not accepted as socket endpoints.
 
 ## Documentation
 
