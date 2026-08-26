@@ -17,113 +17,140 @@ use Webrtc\Exception\InvalidArgumentException;
 use Webrtc\STUN\Enum\MessageAttribute;
 
 /**
- * Class to handle encoding and decoding of WebRTC message attributes.
+ * Stateless helper to encode and decode WebRTC message attributes.
  *
+ * Every method is a pure function of its arguments; no instance state is kept.
  */
-class MessageAttributeEncoder
+final class MessageAttributeEncoder
 {
     public const COOKIE = 0x2112A442;
     private const IPV4_PROTOCOL = 1;
     private const IPV6_PROTOCOL = 2;
 
-    private const ATTRIBUTES = [
-        [MessageAttribute::MAPPED_ADDRESS, 'packAddress', 'unpackAddress'],
-        [MessageAttribute::CHANGE_REQUEST, 'packUnsigned', 'unpackUnsigned'],
-        [MessageAttribute::SOURCE_ADDRESS, 'packAddress', 'unpackAddress'],
-        [MessageAttribute::CHANGED_ADDRESS, 'packAddress', 'unpackAddress'],
-        [MessageAttribute::USERNAME, 'returnValue', 'returnValue'],
-        [MessageAttribute::MESSAGE_INTEGRITY, 'returnValue', 'returnValue'],
-        [MessageAttribute::ERROR_CODE, 'packErrorCode', 'unpackErrorCode'],
-        [MessageAttribute::CHANNEL_NUMBER, 'packUnsignedShort', 'unpackUnsignedShort'],
-        [MessageAttribute::LIFETIME, 'packUnsigned', 'unpackUnsigned'],
-        [MessageAttribute::XOR_PEER_ADDRESS, 'packXorAddress', 'unpackXorAddress'],
-        [MessageAttribute::REALM, 'returnValue', 'returnValue'],
-        [MessageAttribute::NONCE, 'returnValue', 'returnValue'],
-        [MessageAttribute::XOR_RELAYED_ADDRESS, 'packXorAddress', 'unpackXorAddress'],
-        [MessageAttribute::REQUESTED_TRANSPORT, 'packUnsigned', 'unpackUnsigned'],
-        [MessageAttribute::XOR_MAPPED_ADDRESS, 'packXorAddress', 'unpackXorAddress'],
-        [MessageAttribute::PRIORITY, 'packUnsigned', 'unpackUnsigned'],
-        [MessageAttribute::USE_CANDIDATE, 'returnNull', 'returnNull'],
-        [MessageAttribute::SOFTWARE, 'returnValue', 'returnValue'],
-        [MessageAttribute::FINGERPRINT, 'packUnsigned', 'unpackUnsigned'],
-        [MessageAttribute::ICE_CONTROLLED, 'packUnsigned64', 'unpackUnsigned64'],
-        [MessageAttribute::ICE_CONTROLLING, 'packUnsigned64', 'unpackUnsigned64'],
-        [MessageAttribute::RESPONSE_ORIGIN, 'packAddress', 'unpackAddress'],
-        [MessageAttribute::OTHER_ADDRESS, 'packAddress', 'unpackAddress']
+    /**
+     * Pack/unpack strategies. Each attribute maps to exactly one via self::CODECS.
+     */
+    private const CODEC_ADDRESS = 'address';
+    private const CODEC_XOR_ADDRESS = 'xorAddress';
+    private const CODEC_UNSIGNED = 'unsigned';
+    private const CODEC_UNSIGNED_SHORT = 'unsignedShort';
+    private const CODEC_UNSIGNED_64 = 'unsigned64';
+    private const CODEC_ERROR_CODE = 'errorCode';
+    private const CODEC_VALUE = 'value';
+    private const CODEC_NULL = 'null';
+
+    /**
+     * Map of attribute type to the codec used to pack/unpack its value.
+     *
+     * @var array<int, string>
+     */
+    private const CODECS = [
+        MessageAttribute::MAPPED_ADDRESS->value => self::CODEC_ADDRESS,
+        MessageAttribute::SOURCE_ADDRESS->value => self::CODEC_ADDRESS,
+        MessageAttribute::CHANGED_ADDRESS->value => self::CODEC_ADDRESS,
+        MessageAttribute::RESPONSE_ORIGIN->value => self::CODEC_ADDRESS,
+        MessageAttribute::OTHER_ADDRESS->value => self::CODEC_ADDRESS,
+
+        MessageAttribute::XOR_PEER_ADDRESS->value => self::CODEC_XOR_ADDRESS,
+        MessageAttribute::XOR_RELAYED_ADDRESS->value => self::CODEC_XOR_ADDRESS,
+        MessageAttribute::XOR_MAPPED_ADDRESS->value => self::CODEC_XOR_ADDRESS,
+
+        MessageAttribute::CHANGE_REQUEST->value => self::CODEC_UNSIGNED,
+        MessageAttribute::LIFETIME->value => self::CODEC_UNSIGNED,
+        MessageAttribute::REQUESTED_TRANSPORT->value => self::CODEC_UNSIGNED,
+        MessageAttribute::PRIORITY->value => self::CODEC_UNSIGNED,
+        MessageAttribute::FINGERPRINT->value => self::CODEC_UNSIGNED,
+
+        MessageAttribute::CHANNEL_NUMBER->value => self::CODEC_UNSIGNED_SHORT,
+
+        MessageAttribute::ICE_CONTROLLED->value => self::CODEC_UNSIGNED_64,
+        MessageAttribute::ICE_CONTROLLING->value => self::CODEC_UNSIGNED_64,
+
+        MessageAttribute::ERROR_CODE->value => self::CODEC_ERROR_CODE,
+
+        MessageAttribute::USERNAME->value => self::CODEC_VALUE,
+        MessageAttribute::MESSAGE_INTEGRITY->value => self::CODEC_VALUE,
+        MessageAttribute::REALM->value => self::CODEC_VALUE,
+        MessageAttribute::NONCE->value => self::CODEC_VALUE,
+        MessageAttribute::SOFTWARE->value => self::CODEC_VALUE,
+
+        MessageAttribute::USE_CANDIDATE->value => self::CODEC_NULL,
     ];
 
-    private array $attributesByType = [];
-    private array $attributesByName = [];
-
     /**
-     * MessageAttributeEncoder constructor.
+     * Encode an attribute by name.
      *
-     * @param int|string|array|InternetAddress|null $data The message data.
+     * @param string $attrName The name of the attribute to encode.
+     * @param int|string|array|InternetAddress|null $data The data to encode.
      * @param string $transactionId The transaction ID.
+     * @return array The encoded attribute type and value.
      */
-    public function __construct(
-        private readonly int|string|array|InternetAddress|null $data,
-        private readonly string $transactionId
-    )
+    public static function encode(
+        string $attrName,
+        int|string|array|InternetAddress|null $data,
+        string $transactionId
+    ): array
     {
-        foreach (self::ATTRIBUTES as $attr) {
-            $this->attributesByType[$attr[0]->value] = $attr;
-            $this->attributesByName[$attr[0]->name] = $attr;
+        $attribute = MessageAttribute::fromName($attrName);
+
+        if ($attribute === null) {
+            throw new InvalidArgumentException("Invalid attribute name: $attrName");
         }
+
+        $packed = match (self::CODECS[$attribute->value]) {
+            self::CODEC_ADDRESS => self::packAddress($data),
+            self::CODEC_XOR_ADDRESS => self::packXorAddress($data, $transactionId),
+            self::CODEC_UNSIGNED => self::packUnsigned($data),
+            self::CODEC_UNSIGNED_SHORT => self::packUnsignedShort($data),
+            self::CODEC_UNSIGNED_64 => self::packUnsigned64($data),
+            self::CODEC_ERROR_CODE => self::packErrorCode($data),
+            self::CODEC_VALUE => $data,
+            self::CODEC_NULL => null,
+        };
+
+        return [$attribute->value, $packed];
     }
 
     /**
-     * Get attributes by type.
+     * Decode an attribute by type.
      *
-     * @param int $type The attribute type.
-     * @return array|null The attribute array or null if not found.
+     * @param int $attrType The type of the attribute to decode.
+     * @param string $data The data to decode.
+     * @param string $transactionId The transaction ID.
+     * @return array The decoded attribute name and value.
      */
-    public function getAttributesByType(int $type): ?array
+    public static function decode(int $attrType, string $data, string $transactionId): array
     {
-        return $this->attributesByType[$type] ?? null;
+        $attribute = MessageAttribute::tryFrom($attrType);
+
+        if ($attribute === null) {
+            throw new InvalidArgumentException("Invalid attribute type: $attrType");
+        }
+
+        $unpacked = match (self::CODECS[$attribute->value]) {
+            self::CODEC_ADDRESS => self::unpackAddress($data),
+            self::CODEC_XOR_ADDRESS => self::unpackXorAddress($data, $transactionId),
+            self::CODEC_UNSIGNED => self::unpackUnsigned($data),
+            self::CODEC_UNSIGNED_SHORT => self::unpackUnsignedShort($data),
+            self::CODEC_UNSIGNED_64 => self::unpackUnsigned64($data),
+            self::CODEC_ERROR_CODE => self::unpackErrorCode($data),
+            self::CODEC_VALUE => $data,
+            self::CODEC_NULL => null,
+        };
+
+        return [$attribute->name, $unpacked];
     }
 
     /**
-     * Get attributes by name.
+     * Perform the STUN XOR operation on an address.
      *
-     * @param string $name The attribute name.
-     * @return array|null The attribute array or null if not found.
-     */
-    public function getAttributesByName(string $name): ?array
-    {
-        return $this->attributesByName[$name] ?? null;
-    }
-
-    /**
-     * Return the value of the attribute as is.
-     *
-     * @return string The attribute value.
-     */
-    public function returnValue(): string
-    {
-        return $this->data;
-    }
-
-    /**
-     * Return null for the attribute value.
-     *
-     * @return null|string
-     */
-    public function returnNull(): ?string
-    {
-        return null;
-    }
-
-    /**
-     * Perform XOR operation on the address.
-     *
-     * @param string|null $data The address data.
+     * @param string $data The address data.
+     * @param string $transactionId The transaction ID.
      * @return string The XORed address.
      */
-    public function xorAddress(?string $data = null): string
+    public static function xorAddress(string $data, string $transactionId): string
     {
-        $data = $data ?? $this->data;
-        $xpad = pack('nN', self::COOKIE >> 16, self::COOKIE) . $this->transactionId;
+        $xpad = pack('nN', self::COOKIE >> 16, self::COOKIE) . $transactionId;
         $xdata = substr($data, 0, 2);
         for ($i = 2, $len = strlen($data); $i < $len; $i++) {
             $xdata .= chr(ord($data[$i]) ^ ord($xpad[$i - 2]));
@@ -132,34 +159,33 @@ class MessageAttributeEncoder
     }
 
     /**
-     * Pack the address.
+     * Pack an address.
      *
+     * @param mixed $data The address, which must be an InternetAddress.
      * @return string The packed address.
      */
-    public function packAddress(): string
+    public static function packAddress(mixed $data): string
     {
-        if (!$this->data instanceof InternetAddress) {
+        if (!$data instanceof InternetAddress) {
             throw new InvalidArgumentException('STUN address attributes must be InternetAddress objects');
         }
 
-        $protocol = $this->data->getVersion() === InternetAddressVersion::IPv4
+        $protocol = $data->getVersion() === InternetAddressVersion::IPv4
             ? self::IPV4_PROTOCOL
             : self::IPV6_PROTOCOL;
 
-        return pack('C2n', 0, $protocol, $this->data->getPort()) . $this->data->getAddressBytes();
+        return pack('C2n', 0, $protocol, $data->getPort()) . $data->getAddressBytes();
     }
 
     /**
-     * Unpack the address.
+     * Unpack an address.
      *
-     * @param string|null $data The packed address data.
+     * @param string $data The packed address data.
      * @return InternetAddress The unpacked address.
      * @throws InvalidArgumentException If the data is invalid.
      */
-    public function unpackAddress(?string $data = null): InternetAddress
+    public static function unpackAddress(string $data): InternetAddress
     {
-        $data = $data ?? $this->data;
-
         if (strlen($data) < 4) {
             throw new InvalidArgumentException("STUN address length is less than 4 bytes");
         }
@@ -183,169 +209,121 @@ class MessageAttributeEncoder
     }
 
     /**
-     * Pack the XORed address.
+     * Pack an XORed address.
      *
+     * @param mixed $data The address, which must be an InternetAddress.
+     * @param string $transactionId The transaction ID.
      * @return string The packed XORed address.
      */
-    public function packXorAddress(): string
+    public static function packXorAddress(mixed $data, string $transactionId): string
     {
-        return $this->xorAddress($this->packAddress());
+        return self::xorAddress(self::packAddress($data), $transactionId);
     }
 
     /**
-     * Unpack the XORed address.
+     * Unpack an XORed address.
      *
+     * @param string $data The packed XORed address data.
+     * @param string $transactionId The transaction ID.
      * @return InternetAddress The unpacked XORed address.
      * @throws InvalidArgumentException If the data is invalid.
      */
-    public function unpackXorAddress(): InternetAddress
+    public static function unpackXorAddress(string $data, string $transactionId): InternetAddress
     {
-        return $this->unpackAddress($this->xorAddress());
+        return self::unpackAddress(self::xorAddress($data, $transactionId));
     }
 
     /**
-     * Pack the error code.
+     * Pack an error code.
      *
+     * @param array $data The [code, reason] pair.
      * @return string The packed error code.
      */
-    public function packErrorCode(): string
+    public static function packErrorCode(array $data): string
     {
-        return pack('nCC', 0, intdiv($this->data[0], 100), $this->data[0] % 100) . $this->data[1];
+        return pack('nCC', 0, intdiv($data[0], 100), $data[0] % 100) . $data[1];
     }
 
     /**
-     * Unpack the error code.
+     * Unpack an error code.
      *
+     * @param string $data The packed error code data.
      * @return array The unpacked error code and reason.
      * @throws InvalidArgumentException If the data is invalid.
      */
-    public function unpackErrorCode(): array
+    public static function unpackErrorCode(string $data): array
     {
-
-        if (strlen($this->data) < 4) {
+        if (strlen($data) < 4) {
             throw new InvalidArgumentException("STUN error code is less than 4 bytes");
         }
-        [, $codeHigh, $codeLow] = array_values(unpack('nreserved/CcodeHigh/CcodeLow', substr($this->data, 0, 4)));
-        $reason = substr($this->data, 4);
+        [, $codeHigh, $codeLow] = array_values(unpack('nreserved/CcodeHigh/CcodeLow', substr($data, 0, 4)));
+        $reason = substr($data, 4);
         return [$codeHigh * 100 + $codeLow, $reason];
     }
 
     /**
      * Pack an unsigned integer.
      *
+     * @param int $data The value to pack.
      * @return string The packed unsigned integer.
      */
-    public function packUnsigned(): string
+    public static function packUnsigned(int $data): string
     {
-        return pack('N', $this->data);
+        return pack('N', $data);
     }
 
     /**
      * Unpack an unsigned integer.
      *
+     * @param string $data The packed value.
      * @return int The unpacked unsigned integer.
      */
-    public function unpackUnsigned(): int
+    public static function unpackUnsigned(string $data): int
     {
-        return unpack('N', $this->data)[1];
+        return unpack('N', $data)[1];
     }
 
     /**
      * Pack an unsigned short integer.
      *
+     * @param int $data The value to pack.
      * @return string The packed unsigned short integer.
      */
-    public function packUnsignedShort(): string
+    public static function packUnsignedShort(int $data): string
     {
-        return pack('n', $this->data) . "\x00\x00";
+        return pack('n', $data) . "\x00\x00";
     }
 
     /**
      * Unpack an unsigned short integer from the data.
      *
+     * @param string $data The packed value.
      * @return int The unpacked unsigned short integer.
      */
-    public function unpackUnsignedShort(): int
+    public static function unpackUnsignedShort(string $data): int
     {
-        return unpack('n', substr($this->data, 0, 2))[0];
+        return unpack('n', substr($data, 0, 2))[0];
     }
 
     /**
      * Pack a signed 64-bit integer in network byte order.
      *
-     * @return string The packed 64-bit unsigned integer.
+     * @param int $data The value to pack.
+     * @return string The packed 64-bit integer.
      */
-    public function packUnsigned64(): string
+    public static function packUnsigned64(int $data): string
     {
-        return pack('J', $this->data);
+        return pack('J', $data);
     }
 
     /**
      * Unpack a signed 64-bit integer in network byte order.
      *
+     * @param string $data The packed value.
      * @return int The unpacked signed 64-bit integer.
      */
-    public function unpackUnsigned64(): int
+    public static function unpackUnsigned64(string $data): int
     {
-        return unpack('J', $this->data)[1];
-    }
-
-    /**
-     * Encode an attribute by name.
-     *
-     * @param string $attrName The name of the attribute to encode.
-     * @param int|string|array|InternetAddress|null $data The data to encode.
-     * @param string $transactionId The transaction ID.
-     * @return array The encoded attribute type and value.
-     */
-    public static function encode(
-        string $attrName,
-        int|string|array|InternetAddress|null $data,
-        string $transactionId
-    ): array
-    {
-        return self::getEncode($attrName, $data, $transactionId);
-    }
-
-    /**
-     * Decode an attribute by type.
-     *
-     * @param string $attrType The type of the attribute to decode.
-     * @param string $data The data to decode.
-     * @param string $transactionId The transaction ID.
-     * @return array The decoded attribute type and value.
-     */
-    public static function decode(string $attrType, string $data, string $transactionId): array
-    {
-        return self::getEncode($attrType, $data, $transactionId, true);
-    }
-
-    /**
-     * Get the encoded or decoded attribute.
-     *
-     * @param string $attr The attribute to encode or decode.
-     * @param int|string|array|InternetAddress|null $data The data to encode or decode.
-     * @param string $transactionId The transaction ID.
-     * @param bool $decode Flag to indicate decoding.
-     * @return array The attribute type and encoded or decoded value.
-     */
-    private static function getEncode(
-        string $attr,
-        int|string|array|InternetAddress|null $data,
-        string $transactionId,
-        bool $decode = false
-    ): array
-    {
-        $encoder = new static($data, $transactionId);
-        $attr = $encoder->{$decode ? 'getAttributesByType' : 'getAttributesByName'}($attr);
-
-        if (!$attr) {
-            throw new InvalidArgumentException("Invalid attribute name: $attr");
-        }
-
-        $attrType = $attr[0]->{$decode ? 'name' : 'value'};
-        $funcName = $attr[$decode ? 2 : 1];
-
-        return [$attrType, call_user_func([$encoder, $funcName])];
+        return unpack('J', $data)[1];
     }
 }
