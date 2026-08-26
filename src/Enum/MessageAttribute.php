@@ -41,4 +41,40 @@ enum MessageAttribute: int
     case ICE_CONTROLLING = 0x802A;
     case RESPONSE_ORIGIN = 0x802B;
     case OTHER_ADDRESS = 0x802C;
+
+    /**
+     * Resolve an attribute from its case name.
+     *
+     * @param string $name The attribute case name.
+     * @return self|null The matching attribute, or null if the name is unknown.
+     */
+    public static function fromName(string $name): ?self
+    {
+        return match ($name) {
+            'MAPPED_ADDRESS' => self::MAPPED_ADDRESS,
+            'CHANGE_REQUEST' => self::CHANGE_REQUEST,
+            'SOURCE_ADDRESS' => self::SOURCE_ADDRESS,
+            'CHANGED_ADDRESS' => self::CHANGED_ADDRESS,
+            'USERNAME' => self::USERNAME,
+            'MESSAGE_INTEGRITY' => self::MESSAGE_INTEGRITY,
+            'ERROR_CODE' => self::ERROR_CODE,
+            'CHANNEL_NUMBER' => self::CHANNEL_NUMBER,
+            'LIFETIME' => self::LIFETIME,
+            'XOR_PEER_ADDRESS' => self::XOR_PEER_ADDRESS,
+            'REALM' => self::REALM,
+            'NONCE' => self::NONCE,
+            'XOR_RELAYED_ADDRESS' => self::XOR_RELAYED_ADDRESS,
+            'REQUESTED_TRANSPORT' => self::REQUESTED_TRANSPORT,
+            'XOR_MAPPED_ADDRESS' => self::XOR_MAPPED_ADDRESS,
+            'PRIORITY' => self::PRIORITY,
+            'USE_CANDIDATE' => self::USE_CANDIDATE,
+            'SOFTWARE' => self::SOFTWARE,
+            'FINGERPRINT' => self::FINGERPRINT,
+            'ICE_CONTROLLED' => self::ICE_CONTROLLED,
+            'ICE_CONTROLLING' => self::ICE_CONTROLLING,
+            'RESPONSE_ORIGIN' => self::RESPONSE_ORIGIN,
+            'OTHER_ADDRESS' => self::OTHER_ADDRESS,
+            default => null,
+        };
+    }
 }
