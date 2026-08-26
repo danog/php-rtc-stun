@@ -2,6 +2,7 @@
 
 namespace Tests\Webrtc\STUN;
 
+use Amp\Socket\InternetAddress;
 use Mockery;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -42,7 +43,7 @@ class StunTest extends TestCase
         $candidateMock = Mockery::mock(RTCIceCandidate::class);
         $candidateMock->shouldReceive('getComponentId')->once()->andReturn(1);
 
-        $stun = Stun::create($receiver, '127.0.0.1');
+        $stun = Stun::create($receiver, new InternetAddress('127.0.0.1', 0));
         $stun->setCandidate($candidateMock);
         $stun->send("Hello world!", $echoServer->getLocalAddress());
 

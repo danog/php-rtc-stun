@@ -12,9 +12,9 @@
 namespace Webrtc\STUN;
 
 use Amp\Socket\InternetAddress;
-use Amp\Socket\Socket;
 use Amp\Socket\UdpSocket;
 use Throwable;
+use Webrtc\Exception\InvalidArgumentException;
 use function Amp\async;
 
 /**
@@ -26,14 +26,8 @@ use function Amp\async;
  */
 abstract class Datagram extends BaseProtocol
 {
-    /** @var string The remote address for communication */
-    protected string $remoteAddress;
-
-    /** @var string The local host address */
-    private string $localHost;
-
-    /** @var int The local port number */
-    private int $localPort;
+    /** The default remote address for communication. */
+    protected ?InternetAddress $remoteAddress = null;
 
     /** Whether the receive loop should keep delivering datagrams. */
     private bool $paused = false;
@@ -45,7 +39,6 @@ abstract class Datagram extends BaseProtocol
      */
     public function __construct(protected UdpSocket $socket)
     {
-        $this->parseLocalAddress();
         $this->listen();
     }
 
@@ -66,12 +59,11 @@ abstract class Datagram extends BaseProtocol
                     if ($this->paused) {
                         continue;
                     }
-
                     // Dispatch in its own fiber. Handling a datagram can block — answering a
                     // binding request may itself start a transaction and wait for its reply —
                     // and doing that inline stops this loop from reading, so the very replies
                     // being waited on never arrive and every transaction times out.
-                    async(fn () => $this->onReceived($data, $this->formatAddress($address)))->ignore();
+                    async(fn () => $this->onReceived($data, $address))->ignore();
                 }
 
                 $this->onClose();
@@ -85,15 +77,17 @@ abstract class Datagram extends BaseProtocol
      * Send data through the UDP socket
      *
      * @param string $data The data to send
-     * @param string|null $remoteAddress The target address (uses default remote address if null)
+     * @param InternetAddress|null $remoteAddress The target address (uses default remote address if null)
      * @return void
      */
-    public function send(string $data, ?string $remoteAddress = null): void
+    public function send(string $data, ?InternetAddress $remoteAddress = null): void
     {
-        $this->socket->send(
-            InternetAddress::fromString($this->stripScheme($remoteAddress ?? $this->remoteAddress)),
-            $data
-        );
+        $remoteAddress ??= $this->remoteAddress;
+        if ($remoteAddress === null) {
+            throw new InvalidArgumentException('A remote address must be provided');
+        }
+
+        $this->socket->send($remoteAddress, $data);
     }
 
     /**
@@ -142,11 +136,11 @@ abstract class Datagram extends BaseProtocol
     /**
      * Get the local socket address
      *
-     * @return string The local address in "host:port" format
+     * @return InternetAddress The local socket address
      */
-    public function getLocalAddress(): string
+    public function getLocalAddress(): InternetAddress
     {
-        return (string) $this->socket->getAddress();
+        return $this->socket->getAddress();
     }
 
     /**
@@ -156,7 +150,7 @@ abstract class Datagram extends BaseProtocol
      */
     public function getLocalHost(): string
     {
-        return $this->localHost;
+        return $this->getLocalAddress()->getAddress();
     }
 
     /**
@@ -166,15 +160,15 @@ abstract class Datagram extends BaseProtocol
      */
     public function getLocalPort(): int
     {
-        return $this->localPort;
+        return $this->getLocalAddress()->getPort();
     }
 
     /**
      * Get the remote address
      *
-     * @return string|null The remote address in "host:port" format or null if not connected
+     * @return InternetAddress|null The remote address or null if not connected
      */
-    public function getRemoteAddress(): ?string
+    public function getRemoteAddress(): ?InternetAddress
     {
         return $this->remoteAddress ?? null;
     }
@@ -183,10 +177,10 @@ abstract class Datagram extends BaseProtocol
      * Handle received messages (abstract method to be implemented by concrete classes)
      *
      * @param string $data The received data
-     * @param string $peerAddress The address of the peer that sent the data
+     * @param InternetAddress $peerAddress The address of the peer that sent the data
      * @return void
      */
-    protected abstract function onReceived(string $data, string $peerAddress): void;
+    protected abstract function onReceived(string $data, InternetAddress $peerAddress): void;
 
     /**
      * Handle socket errors (abstract method to be implemented by concrete classes)
@@ -203,39 +197,4 @@ abstract class Datagram extends BaseProtocol
      */
     protected abstract function onClose(): void;
 
-    /**
-     * Parse and store the local address components (host and port)
-     *
-     * @return void
-     */
-    private function parseLocalAddress(): void
-    {
-        $address = $this->socket->getAddress();
-
-        $this->localHost = $address->getAddress();
-        $this->localPort = $address->getPort();
-    }
-
-    /**
-     * Render a peer address the way the rest of the stack writes them.
-     *
-     * InternetAddress brackets IPv6 hosts, while candidates are carried as a plain
-     * "host:port" join. Reporting the bracketed form makes every IPv6 connectivity check
-     * look like it came from the wrong source and fail its address validation.
-     */
-    private function formatAddress(InternetAddress $address): string
-    {
-        return $address->getAddress() . ':' . $address->getPort();
-    }
-
-    /**
-     * Addresses are passed around as plain "host:port" here, but callers sometimes carry the
-     * scheme along, and InternetAddress will not parse it.
-     */
-    private function stripScheme(string $address): string
-    {
-        $separator = strpos($address, '://');
-
-        return $separator === false ? $address : substr($address, $separator + 3);
-    }
 }

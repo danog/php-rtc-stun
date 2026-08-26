@@ -2,6 +2,7 @@
 
 namespace Tests\Webrtc\STUN;
 
+use Amp\Socket\InternetAddress;
 use Mockery;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
@@ -37,7 +38,7 @@ class TransactionTest extends TestCase
     public function testTransactionTimeout()
     {
         $message = Message::new(MessageClass::REQUEST, MessageMethod::BINDING);
-        $transaction = new Transaction($message, "127.0.0.1:2365", $this->stun ,0);
+        $transaction = new Transaction($message, new InternetAddress('127.0.0.1', 2365), $this->stun, 0);
 
         $this->expectException(TransactionTimeoutException::class);
         $transaction->execute();
@@ -46,11 +47,13 @@ class TransactionTest extends TestCase
     public function testTransactionReceive()
     {
         $message = Message::new(MessageClass::RESPONSE, MessageMethod::BINDING);
-        $transaction = new Transaction($message, "127.0.0.1:2365", $this->stun);
+        $address = new InternetAddress('127.0.0.1', 2365);
+        $transaction = new Transaction($message, $address, $this->stun);
 
-        $transaction->responseReceived($message, "127.0.0.1:2365");
+        $transaction->responseReceived($message, $address);
         $response = $transaction->getDeferred()->getFuture()->await();
         $this->assertEquals($message, $response[0]);
+        $this->assertSame($address, $response[1]);
     }
 
     public function testTransactionFailed()

@@ -11,6 +11,7 @@
 
 namespace Webrtc\STUN\Trait;
 
+use Amp\Socket\InternetAddress;
 use Webrtc\Exception\InvalidArgumentException;
 use Webrtc\STUN\Message\MessageInterface;
 use Webrtc\STUN\Transaction;
@@ -30,10 +31,10 @@ trait Request
      * Sends a STUN/TURN message to a specified address
      *
      * @param MessageInterface $message The message to send
-     * @param string|null $address The target address (null uses default remote address)
+     * @param InternetAddress|null $address The target address (null uses default remote address)
      * @return void
      */
-    public function sendMessage(MessageInterface $message, ?string $address): void
+    public function sendMessage(MessageInterface $message, ?InternetAddress $address): void
     {
         $this->logger?->debug("Send a STUN/TURN Message", ["Message" => $message->humanReadable(), "ToAddress" => $address ?? $this->remoteAddress]);
         $this->send((string)$message, $address);
@@ -43,15 +44,15 @@ trait Request
      * Initiates a STUN/TURN request transaction
      *
      * @param MessageInterface $message The request message to send
-     * @param string|null $address The target address (optional)
+     * @param InternetAddress|null $address The target address (optional)
      * @param string|null $integrityKey The key for message integrity (optional)
      * @param int $retransmissions Number of retransmission attempts (default: 0)
-     * @return array{MessageInterface, string|null} The response and where it came from.
+     * @return array{MessageInterface, InternetAddress|null} The response and where it came from.
      * @throws InvalidArgumentException If the message transaction is already pending
      */
     public function request(
         MessageInterface $message,
-        ?string $address = null,
+        ?InternetAddress $address = null,
         ?string $integrityKey = null,
         int $retransmissions = 0
     ): array {

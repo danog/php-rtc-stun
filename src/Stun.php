@@ -11,6 +11,7 @@
 
 namespace Webrtc\STUN;
 
+use Amp\Socket\InternetAddress;
 use Psr\Log\LoggerInterface;
 use Ramsey\Uuid\Uuid;
 use Random\RandomException;
@@ -62,11 +63,11 @@ class Stun extends Datagram implements StunInterface
      * Processes incoming STUN messages or forwards non-STUN data to receiver
      *
      * @param string $data The received raw data
-     * @param string $peerAddress The peer's IP address and port
+     * @param InternetAddress $peerAddress The peer's IP address and port
      * @return void
      * @throws RandomException
      */
-    protected function onReceived(string $data, string $peerAddress): void
+    protected function onReceived(string $data, InternetAddress $peerAddress): void
     {
         if ($message = $this->decodeMessage($data)) {
             $this->handleMessage($message, $peerAddress, $data);
@@ -97,11 +98,11 @@ class Stun extends Datagram implements StunInterface
      * Handles different message types (requests, responses, errors) appropriately
      *
      * @param MessageInterface $message The decoded STUN message
-     * @param string $address Peer address
+     * @param InternetAddress $address Peer address
      * @param string $data Raw message data
      * @return void
      */
-    private function handleMessage(MessageInterface $message, string $address, string $data): void
+    private function handleMessage(MessageInterface $message, InternetAddress $address, string $data): void
     {
         $this->logger?->info(
             "A new STUN message has been received",
@@ -160,28 +161,30 @@ class Stun extends Datagram implements StunInterface
      * Factory method to create and bind a new STUN server instance
      *
      * @param ReceiverInterface $receiver Message receiver handler
-     * @param string $host Host address to bind to
+     * @param InternetAddress $address Address to bind to
      * @param LoggerInterface|null $logger Optional PSR-3 logger
      * @param array|null $portRange
      * @return StunInterface
      */
     public static function create(
         ReceiverInterface $receiver,
-        string $host,
+        InternetAddress $address,
         ?LoggerInterface $logger = null,
         ?array $portRange = null
     ): StunInterface {
-        $port = 0;
         if ($portRange) {
-            $port = self::getRandomPort($portRange, $host);
+            $address = new InternetAddress(
+                $address->getAddress(),
+                self::getRandomPort($portRange, $address)
+            );
         }
 
         try {
-            $socket = bindUdpSocket("$host:$port");
+            $socket = bindUdpSocket($address);
             return new static($receiver, $socket, $logger);
         } catch (Throwable $e) {
             throw new RuntimeException(
-                sprintf("Could not bind to %s - %s", "$host:$port", $e->getMessage()),
+                sprintf("Could not bind to %s - %s", $address, $e->getMessage()),
                 $e->getCode(),
                 $e
             );
@@ -192,11 +195,11 @@ class Stun extends Datagram implements StunInterface
      * Get a random available port within a given range
      *
      * @param array $portRange Array containing [minPort, maxPort]
-     * @param string $host Host address to test binding
+     * @param InternetAddress $address Host address to test binding
      * @return int
      * @throws RuntimeException If no available port is found
      */
-    private static function getRandomPort(array $portRange, string $host): int
+    private static function getRandomPort(array $portRange, InternetAddress $address): int
     {
         [$min, $max] = $portRange;
 
@@ -208,10 +211,13 @@ class Stun extends Datagram implements StunInterface
         shuffle($ports);
 
         foreach ($ports as $port) {
-            $socket = @stream_socket_server("udp://$host:$port", $errno, $errstr);
-            if ($socket) {
-                fclose($socket);
+            $candidateAddress = new InternetAddress($address->getAddress(), $port);
+            try {
+                $socket = bindUdpSocket($candidateAddress);
+                $socket->close();
+
                 return $port;
+            } catch (Throwable) {
             }
         }
 

@@ -11,16 +11,17 @@
 
 namespace Webrtc\STUN;
 
+use Amp\Socket\InternetAddress;
 use Webrtc\STUN\Message\MessageInterface;
 
 interface RequestInterface
 {
-    public function sendMessage(MessageInterface $message, ?string $address): void;
+    public function sendMessage(MessageInterface $message, ?InternetAddress $address): void;
 
     /**
      * Send a request and wait for its response.
      *
-     * @return array{MessageInterface, string|null} The response and where it came from.
+     * @return array{MessageInterface, InternetAddress|null} The response and where it came from.
      */
-    public function request(MessageInterface $message, ?string $address, ?string $integrity_key, int $retransmissions = 0): array;
+    public function request(MessageInterface $message, ?InternetAddress $address, ?string $integrity_key, int $retransmissions = 0): array;
 }

@@ -11,11 +11,12 @@
 
 namespace Webrtc\STUN;
 
+use Amp\Socket\InternetAddress;
 use Webrtc\ICE\RTCIceCandidate;
 
 interface BaseProtocolInterface
 {
-    public function send(string $data, ?string $remoteAddress = null): void;
+    public function send(string $data, ?InternetAddress $remoteAddress = null): void;
 
     public function close(): void;
 
@@ -25,13 +26,13 @@ interface BaseProtocolInterface
 
     public function pause(): void;
 
-    public function getLocalAddress(): string;
+    public function getLocalAddress(): InternetAddress;
 
     public function getLocalHost(): string;
 
     public function getLocalPort(): int;
 
-    public function getRemoteAddress(): ?string;
+    public function getRemoteAddress(): ?InternetAddress;
 
     public function getCandidate(): ?RTCIceCandidate;
 

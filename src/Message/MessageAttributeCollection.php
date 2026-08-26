@@ -46,9 +46,9 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
     /**
      * Get the first attribute value.
      *
-     * @return null|string First attribute value or null if empty.
+     * @return mixed First attribute value or null if empty.
      */
-    public function first(): ?string
+    public function first(): mixed
     {
         return reset($this->attributes) ?: null;
     }
@@ -56,9 +56,9 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
     /**
      * Get the last attribute value.
      *
-     * @return null|string Last attribute value or null if empty.
+     * @return mixed Last attribute value or null if empty.
      */
-    public function end(): ?string
+    public function end(): mixed
     {
         return end($this->attributes) ?: null;
     }
@@ -67,10 +67,10 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
      * Add an attribute.
      *
      * @param MessageAttribute $attribute Attribute key.
-     * @param string|null $value
+     * @param mixed $value
      * @return self
      */
-    public function add(MessageAttribute $attribute, ?string $value = null): self
+    public function add(MessageAttribute $attribute, mixed $value = null): self
     {
 //        $messageAttrExist = (bool)array_filter(MessageAttribute::cases(), fn($attribute) => $attribute->name === $key);
 //
@@ -142,9 +142,9 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
      *
      * @param MessageAttribute|string $attribute Attribute.
      * @param mixed $default Default value if attribute is not found.
-     * @return string|array|null
+     * @return mixed
      */
-    public function get(MessageAttribute|string $attribute, mixed $default = null): null|string|array
+    public function get(MessageAttribute|string $attribute, mixed $default = null): mixed
     {
         return $this->attributes[is_string($attribute) ? $attribute : $attribute->name] ?? $default;
     }

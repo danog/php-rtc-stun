@@ -2,6 +2,7 @@
 
 namespace Tests\Webrtc\STUN\Message;
 
+use Amp\Socket\InternetAddress;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
@@ -110,10 +111,10 @@ class MessageTest extends TestCase
         $this->assertEquals("Nvfx3lU7FUBF", $message->getTransactionId());
         $this->assertEquals(
             [
-                'XOR_MAPPED_ADDRESS' => ["80.200.136.90", 53054],
-                'MAPPED_ADDRESS' => ["80.200.136.90", 53054],
-                'RESPONSE_ORIGIN' => ["52.17.36.97", 3478],
-                'OTHER_ADDRESS' => ["52.17.36.97", 3479],
+                'XOR_MAPPED_ADDRESS' => new InternetAddress('80.200.136.90', 53054),
+                'MAPPED_ADDRESS' => new InternetAddress('80.200.136.90', 53054),
+                'RESPONSE_ORIGIN' => new InternetAddress('52.17.36.97', 3478),
+                'OTHER_ADDRESS' => new InternetAddress('52.17.36.97', 3479),
                 'SOFTWARE' => "Citrix-3.2.4.5 'Marshal West'",
             ],
             $message->attributes()->all()

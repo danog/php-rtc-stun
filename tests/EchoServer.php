@@ -2,6 +2,7 @@
 
 namespace Tests\Webrtc\STUN;
 
+use Amp\Socket\InternetAddress;
 use Amp\Socket\UdpSocket;
 use Webrtc\Exception\RuntimeException;
 use Webrtc\STUN\Datagram;
@@ -14,7 +15,7 @@ class EchoServer extends Datagram
         parent::__construct($socket);
     }
 
-    protected function onReceived(string $data, string $peerAddress): void
+    protected function onReceived(string $data, InternetAddress $peerAddress): void
     {
         $this->send($data, $peerAddress);
     }
@@ -27,13 +28,15 @@ class EchoServer extends Datagram
     {
     }
 
-    public static function create(string $host = "127.0.0.1", int $port = 0): self
+    public static function create(?InternetAddress $address = null): self
     {
+        $address ??= new InternetAddress('127.0.0.1', 0);
+
         try {
-            $socket = bindUdpSocket("$host:$port");
+            $socket = bindUdpSocket($address);
             return new static($socket);
         } catch (\Throwable $e) {
-            throw new RuntimeException(sprintf("Could not bind to %s - %s", "$host:$port", $e->getMessage()), $e->getCode(), $e);
+            throw new RuntimeException(sprintf("Could not bind to %s - %s", $address, $e->getMessage()), $e->getCode(), $e);
         }
     }
 }

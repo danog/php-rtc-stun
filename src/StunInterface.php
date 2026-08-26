@@ -11,9 +11,15 @@
 
 namespace Webrtc\STUN;
 
+use Amp\Socket\InternetAddress;
 use Psr\Log\LoggerInterface;
 
 interface StunInterface extends IceConnectionProtocolInterface
 {
-    public static function create(ReceiverInterface $receiver, string $host, LoggerInterface $logger, ?array $portRange): StunInterface;
+    public static function create(
+        ReceiverInterface $receiver,
+        InternetAddress $address,
+        ?LoggerInterface $logger = null,
+        ?array $portRange = null
+    ): StunInterface;
 }

@@ -11,6 +11,7 @@
 
 namespace Webrtc\STUN\Message;
 
+use Stringable;
 use Random\RandomException;
 use Webrtc\Exception\InvalidArgumentException;
 use Webrtc\STUN\Enum\MessageAttribute;
@@ -269,6 +270,7 @@ class Message implements MessageInterface
 
         foreach ($this->attributes()->all() as $attrName => $attrVal) {
             $attrVal = is_array($attrVal) ? "(" . implode(", ", $attrVal) . ")" : $attrVal;
+            $attrVal = $attrVal instanceof Stringable ? (string) $attrVal : $attrVal;
             if (in_array($attrName, ["MESSAGE_INTEGRITY"])){
                 $attrVal = bin2hex($attrVal);
             }

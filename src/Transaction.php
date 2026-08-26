@@ -12,6 +12,7 @@
 namespace Webrtc\STUN;
 
 use Amp\DeferredFuture;
+use Amp\Socket\InternetAddress;
 use Revolt\EventLoop;
 use Webrtc\STUN\Enum\MessageClass;
 use Webrtc\STUN\Exception\TransactionFailedException;
@@ -28,7 +29,7 @@ class Transaction implements TransactionInterface
 {
     private const RETRY_MAX = 5;
     private const RETRY_RTO = 0.5;
-    private ?string $address;
+    private ?InternetAddress $address;
     private DeferredFuture $deferred;
     private MessageInterface $message;
     private float $timeoutDelay;
@@ -44,11 +45,11 @@ class Transaction implements TransactionInterface
      * Transaction constructor.
      *
      * @param Message $message The STUN request message.
-     * @param ?string $address The destination address as [host, port].
+     * @param InternetAddress|null $address The destination address.
      * @param BaseProtocolInterface $transport The protocol object.
      * @param int|null $retransmissions Number of retransmissions, default is RETRY_MAX.
      */
-    public function __construct(MessageInterface $message, ?string $address, BaseProtocolInterface $transport, ?int $retransmissions = null)
+    public function __construct(MessageInterface $message, ?InternetAddress $address, BaseProtocolInterface $transport, ?int $retransmissions = null)
     {
         $this->address = $address;
         $this->deferred = new DeferredFuture();
@@ -62,9 +63,9 @@ class Transaction implements TransactionInterface
      * Handle the received response.
      *
      * @param MessageInterface $message The response message.
-     * @param ?string $address The source address as [host, port].
+     * @param InternetAddress|null $address The source address.
      */
-    public function responseReceived(MessageInterface $message, ?string $address): void
+    public function responseReceived(MessageInterface $message, ?InternetAddress $address): void
     {
         if ($this->isResolvedOrReject) {
             return;
@@ -83,7 +84,7 @@ class Transaction implements TransactionInterface
     /**
      * Run the transaction and wait for its response.
      *
-     * @return array{MessageInterface, string|null} The response and where it came from.
+     * @return array{MessageInterface, InternetAddress|null} The response and where it came from.
      * @throws TransactionFailedException If the peer answered with an error response.
      * @throws TransactionTimeoutException If no answer arrived before the retries ran out.
      */

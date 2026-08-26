@@ -2,6 +2,7 @@
 
 namespace Tests\Webrtc\STUN\Message;
 
+use Amp\Socket\InternetAddress;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Webrtc\Exception\InvalidArgumentException;
@@ -30,9 +31,8 @@ class MessageAttributeEncoderTest extends TestCase
     public function testUnpackXorAddressIpv4()
     {
         $transactionId = hex2bin("b7e7a701bc34d686fa87dfae");
-        list($address, $port) = $this->encoderDecoder(hex2bin("0001a147e112a643"), "unpackXorAddress", $transactionId);
-        $this->assertEquals("192.0.2.1", $address);
-        $this->assertEquals(32853, $port);
+        $address = $this->encoderDecoder(hex2bin("0001a147e112a643"), "unpackXorAddress", $transactionId);
+        $this->assertEquals(new InternetAddress('192.0.2.1', 32853), $address);
     }
 
     public function testUnpackXorAddressIpv4Truncated()
@@ -46,9 +46,8 @@ class MessageAttributeEncoderTest extends TestCase
     public function testUnpackXorAddressIpv6()
     {
         $transactionId = hex2bin("b7e7a701bc34d686fa87dfae");
-        list($address, $port) = $this->encoderDecoder(hex2bin("0002a1470113a9faa5d3f179bc25f4b5bed2b9d9"), "unpackXorAddress", $transactionId);
-        $this->assertEquals("2001:db8:1234:5678:11:2233:4455:6677", $address);
-        $this->assertEquals(32853, $port);
+        $address = $this->encoderDecoder(hex2bin("0002a1470113a9faa5d3f179bc25f4b5bed2b9d9"), "unpackXorAddress", $transactionId);
+        $this->assertEquals(new InternetAddress('2001:db8:1234:5678:11:2233:4455:6677', 32853), $address);
     }
 
     public function testUnpackXorAddressIpv6Truncated()
@@ -84,14 +83,14 @@ class MessageAttributeEncoderTest extends TestCase
     public function testPackXorAddressIpv4()
     {
         $transactionId = hex2bin("b7e7a701bc34d686fa87dfae");
-        $data = $this->encoderDecoder(["192.0.2.1", 32853], "packXorAddress", $transactionId);
+        $data = $this->encoderDecoder(new InternetAddress('192.0.2.1', 32853), "packXorAddress", $transactionId);
         $this->assertEquals(hex2bin("0001a147e112a643"), $data);
     }
 
     public function testPackXorAddressIpv6()
     {
         $transactionId = hex2bin("b7e7a701bc34d686fa87dfae");
-        $data = $this->encoderDecoder(["2001:db8:1234:5678:11:2233:4455:6677", 32853], "packXorAddress", $transactionId);
+        $data = $this->encoderDecoder(new InternetAddress('2001:db8:1234:5678:11:2233:4455:6677', 32853), "packXorAddress", $transactionId);
         $this->assertEquals(hex2bin("0002a1470113a9faa5d3f179bc25f4b5bed2b9d9"), $data);
     }
 
@@ -99,11 +98,11 @@ class MessageAttributeEncoderTest extends TestCase
     {
         $transactionId = hex2bin("b7e7a701bc34d686fa87dfae");
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("'foo' does not appear to be an IPv4 or IPv6 address");
-        $this->encoderDecoder(["foo", 32853], "packXorAddress", $transactionId);
+        $this->expectExceptionMessage('STUN address attributes must be InternetAddress objects');
+        $this->encoderDecoder(['192.0.2.1', 32853], "packXorAddress", $transactionId);
     }
 
-    private function encoderDecoder(string|array $data, string $method, string $transactionId = "")
+    private function encoderDecoder(string|array|InternetAddress $data, string $method, string $transactionId = "")
     {
         $attributeEncoder = new MessageAttributeEncoder($data, $transactionId);
         return $attributeEncoder->$method();

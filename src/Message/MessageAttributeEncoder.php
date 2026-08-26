@@ -11,6 +11,8 @@
 
 namespace Webrtc\STUN\Message;
 
+use Amp\Socket\InternetAddress;
+use Amp\Socket\InternetAddressVersion;
 use Webrtc\Exception\InvalidArgumentException;
 use Webrtc\STUN\Enum\MessageAttribute;
 
@@ -56,10 +58,13 @@ class MessageAttributeEncoder
     /**
      * MessageAttributeEncoder constructor.
      *
-     * @param string|array|null $data The message data.
+     * @param string|array|InternetAddress|null $data The message data.
      * @param string $transactionId The transaction ID.
      */
-    public function __construct(private readonly string|array|null $data, private readonly string $transactionId)
+    public function __construct(
+        private readonly string|array|InternetAddress|null $data,
+        private readonly string $transactionId
+    )
     {
         foreach (self::ATTRIBUTES as $attr) {
             $this->attributesByType[$attr[0]->value] = $attr;
@@ -133,24 +138,25 @@ class MessageAttributeEncoder
      */
     public function packAddress(): string
     {
-        $ip = $this->data[0];
-        $port = $this->data[1];
-        $ipAddress = inet_pton($ip);
-        if (!$ipAddress) {
-            throw new InvalidArgumentException("'$ip' does not appear to be an IPv4 or IPv6 address");
+        if (!$this->data instanceof InternetAddress) {
+            throw new InvalidArgumentException('STUN address attributes must be InternetAddress objects');
         }
-        $protocol = !str_contains($ip, ':') ? self::IPV4_PROTOCOL : self::IPV6_PROTOCOL;
-        return pack('C2n', 0, $protocol, $port) . $ipAddress;
+
+        $protocol = $this->data->getVersion() === InternetAddressVersion::IPv4
+            ? self::IPV4_PROTOCOL
+            : self::IPV6_PROTOCOL;
+
+        return pack('C2n', 0, $protocol, $this->data->getPort()) . $this->data->getAddressBytes();
     }
 
     /**
      * Unpack the address.
      *
      * @param string|null $data The packed address data.
-     * @return array The unpacked address.
+     * @return InternetAddress The unpacked address.
      * @throws InvalidArgumentException If the data is invalid.
      */
-    public function unpackAddress(?string $data = null): array
+    public function unpackAddress(?string $data = null): InternetAddress
     {
         $data = $data ?? $this->data;
 
@@ -165,12 +171,12 @@ class MessageAttributeEncoder
             if (strlen($address) !== 4) {
                 throw new InvalidArgumentException("STUN address has invalid length for IPv4");
             }
-            return [inet_ntop($address), $port];
+            return new InternetAddress(inet_ntop($address), $port);
         } elseif ($protocol === self::IPV6_PROTOCOL) {
             if (strlen($address) !== 16) {
                 throw new InvalidArgumentException("STUN address has invalid length for IPv6");
             }
-            return [inet_ntop($address), $port];
+            return new InternetAddress(inet_ntop($address), $port);
         } else {
             throw new InvalidArgumentException("STUN address has unknown protocol");
         }
@@ -189,10 +195,10 @@ class MessageAttributeEncoder
     /**
      * Unpack the XORed address.
      *
-     * @return array The unpacked XORed address.
+     * @return InternetAddress The unpacked XORed address.
      * @throws InvalidArgumentException If the data is invalid.
      */
-    public function unpackXorAddress(): array
+    public function unpackXorAddress(): InternetAddress
     {
         return $this->unpackAddress($this->xorAddress());
     }
@@ -295,11 +301,15 @@ class MessageAttributeEncoder
      * Encode an attribute by name.
      *
      * @param string $attrName The name of the attribute to encode.
-     * @param ?string|array $data The data to encode.
+     * @param string|array|InternetAddress|null $data The data to encode.
      * @param string $transactionId The transaction ID.
      * @return array The encoded attribute type and value.
      */
-    public static function encode(string $attrName, string|array|null $data, string $transactionId): array
+    public static function encode(
+        string $attrName,
+        string|array|InternetAddress|null $data,
+        string $transactionId
+    ): array
     {
         return self::getEncode($attrName, $data, $transactionId);
     }
@@ -321,12 +331,17 @@ class MessageAttributeEncoder
      * Get the encoded or decoded attribute.
      *
      * @param string $attr The attribute to encode or decode.
-     * @param string|array|null $data The data to encode or decode.
+     * @param string|array|InternetAddress|null $data The data to encode or decode.
      * @param string $transactionId The transaction ID.
      * @param bool $decode Flag to indicate decoding.
      * @return array The attribute type and encoded or decoded value.
      */
-    private static function getEncode(string $attr, string|array|null $data, string $transactionId, bool $decode = false): array
+    private static function getEncode(
+        string $attr,
+        string|array|InternetAddress|null $data,
+        string $transactionId,
+        bool $decode = false
+    ): array
     {
         $encoder = new static($data, $transactionId);
         $attr = $encoder->{$decode ? 'getAttributesByType' : 'getAttributesByName'}($attr);

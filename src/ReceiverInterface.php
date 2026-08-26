@@ -11,13 +11,14 @@
 
 namespace Webrtc\STUN;
 
+use Amp\Socket\InternetAddress;
 use Throwable;
 use Webrtc\STUN\Message\MessageInterface;
 
 interface ReceiverInterface
 {
     public function onDataReceived(string $data, int $componentId): void;
-    public function onRequestReceived(MessageInterface $message, string $address, IceConnectionProtocolInterface $protocol, string $data): void;
+    public function onRequestReceived(MessageInterface $message, InternetAddress $address, IceConnectionProtocolInterface $protocol, string $data): void;
     public function onClose(): void;
     public function onError(Throwable $e): void;
 }
