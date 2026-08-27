@@ -22,13 +22,6 @@ use function Amp\delay;
 
 #[UsesClass(Message::class)]
 #[UsesClass(Transaction::class)]
-
-#[UsesClass(Transaction::class)]
-#[UsesClass(Transaction::class)]
-#[UsesClass(Transaction::class)]
-#[UsesClass(Transaction::class)]
-#[UsesClass(Transaction::class)]
-#[UsesClass(Transaction::class)]
 #[UsesClass(TransactionException::class)]
 #[UsesClass(TransactionFailedException::class)]
 #[UsesClass(MessageAttributeCollection::class)]
