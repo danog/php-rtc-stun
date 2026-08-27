@@ -6,6 +6,7 @@ use Amp\Socket\InternetAddress;
 use Mockery;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
+use PHPUnit\Framework\Attributes\UsesTrait;
 use Webrtc\ICE\RTCIceCandidate;
 use Webrtc\STUN\Exception\TransactionException;
 use Webrtc\STUN\Exception\TransactionFailedException;
@@ -34,6 +35,9 @@ use function Amp\delay;
 #[UsesClass(MessageAttributeEncoder::class)]
 #[UsesClass(MessageIntegrity::class)]
 #[UsesClass(Utils::class)]
+#[UsesClass(\Webrtc\SCTP\RTCSctpTransport::class)]
+#[UsesClass(\Webrtc\SCTP\SctpTimer::class)]
+#[UsesTrait(\Webrtc\SCTP\Trait\DataChannel::class)]
 #[CoversClass(Stun::class)]
 class StunTest extends TestCase
 {

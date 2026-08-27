@@ -6,6 +6,10 @@ use Amp\Socket\InternetAddress;
 use Mockery;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\UsesClass;
+use Webrtc\AVCodec\Context\Context;
+use Webrtc\AVCodec\Frame\AudioFrame;
+use Webrtc\AVCodec\Frame\Frame;
+use Webrtc\RTP\Receiver\DecoderQueue;
 use Webrtc\STUN\BaseProtocol;
 use Webrtc\STUN\Enum\MessageAttribute;
 use Webrtc\STUN\Enum\MessageClass;
@@ -24,6 +28,10 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(TransactionFailedException::class)]
 #[UsesClass(BaseProtocol::class)]
 #[UsesClass(Stun::class)]
+#[UsesClass(Context::class)]
+#[UsesClass(AudioFrame::class)]
+#[UsesClass(Frame::class)]
+#[UsesClass(DecoderQueue::class)]
 #[CoversClass(Transaction::class)]
 class TransactionTest extends TestCase
 {

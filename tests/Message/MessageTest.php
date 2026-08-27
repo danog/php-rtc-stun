@@ -19,6 +19,7 @@ use Webrtc\STUN\Utils;
 #[UsesClass(MessageAttributeEncoder::class)]
 #[UsesClass(MessageIntegrity::class)]
 #[UsesClass(Utils::class)]
+#[UsesClass(\Webrtc\STUN\Enum\MessageAttribute::class)]
 #[CoversClass(Message::class)]
 class MessageTest extends TestCase
 {
