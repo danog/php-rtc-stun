@@ -31,7 +31,7 @@ use function Amp\Socket\bindUdpSocket;
  * Handles STUN protocol operations including message encoding/decoding,
  * transaction management, and communication with STUN servers.
  */
-class Stun extends Datagram implements StunInterface
+final class Stun extends Datagram implements StunInterface
 {
     use Request;
 
@@ -187,7 +187,7 @@ class Stun extends Datagram implements StunInterface
 
         try {
             $socket = bindUdpSocket($address);
-            return new static($receiver, $socket, $logger);
+            return new self($receiver, $socket, $logger);
         } catch (Throwable $e) {
             throw new RuntimeException(
                 sprintf("Could not bind to %s - %s", $address, $e->getMessage()),
