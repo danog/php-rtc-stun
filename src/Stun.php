@@ -31,7 +31,7 @@ use function Amp\Socket\bindUdpSocket;
  * Handles STUN protocol operations including message encoding/decoding,
  * transaction management, and communication with STUN servers.
  */
-final class Stun extends Datagram implements StunInterface
+class Stun extends Datagram implements StunInterface
 {
     use Request;
 

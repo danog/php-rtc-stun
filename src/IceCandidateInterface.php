@@ -24,4 +24,14 @@ interface IceCandidateInterface
      * Returns the ICE component id (1 for RTP, 2 for RTCP) this candidate belongs to.
      */
     public function getComponentId(): int;
+
+    /**
+     * Returns the candidate's IP address.
+     */
+    public function getHost(): string;
+
+    /**
+     * Returns the candidate's port number.
+     */
+    public function getPort(): int;
 }

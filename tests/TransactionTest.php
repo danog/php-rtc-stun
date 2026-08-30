@@ -28,10 +28,6 @@ use PHPUnit\Framework\TestCase;
 #[UsesClass(TransactionFailedException::class)]
 #[UsesClass(BaseProtocol::class)]
 #[UsesClass(Stun::class)]
-#[UsesClass(Context::class)]
-#[UsesClass(AudioFrame::class)]
-#[UsesClass(Frame::class)]
-#[UsesClass(DecoderQueue::class)]
 #[CoversClass(Transaction::class)]
 class TransactionTest extends TestCase
 {
