@@ -11,6 +11,7 @@
 
 namespace Webrtc\STUN\Message;
 
+use Amp\Socket\InternetAddress;
 use Webrtc\Exception\InvalidArgumentException;
 use Webrtc\STUN\Enum\MessageClass;
 use Webrtc\STUN\Enum\MessageMethod;
@@ -35,5 +36,10 @@ interface MessageInterface
 
     public function humanReadable(): string;
 
-    public static function new(MessageClass $messageClass, MessageMethod $messageMethod, array $attributes, ?string $integrityKey): MessageInterface;
+    public function __toString(): string;
+
+    /**
+     * @param array<string, InternetAddress|array<array-key, mixed>|int|string|null> $attributes
+     */
+    public static function new(MessageClass $messageClass, MessageMethod $messageMethod, array $attributes = [], ?string $integrityKey = null): MessageInterface;
 }

@@ -11,6 +11,7 @@
 
 namespace Webrtc\STUN\Message;
 
+use Amp\Socket\InternetAddress;
 use ArrayIterator;
 use Countable;
 use IteratorAggregate;
@@ -19,24 +20,27 @@ use Webrtc\STUN\Enum\MessageAttribute;
 
 /**
  * Class representing a collection of message attributes.
+ *
+ * @psalm-type AttributeValue = InternetAddress|array<array-key, mixed>|int|string|null
+ * @implements IteratorAggregate<string, InternetAddress|array<array-key, mixed>|int|string|null>
  */
-class MessageAttributeCollection implements Countable, IteratorAggregate
+final class MessageAttributeCollection implements Countable, IteratorAggregate
 {
     /**
      * Array of attributes.
      *
-     * @var array
+     * @var array<string, AttributeValue>
      */
     private array $attributes = [];
 
     /**
      * MessageAttribute constructor.
      *
-     * @param ?array $attributes Optional initial attributes.
+     * @param array<string, AttributeValue>|null $attributes Optional initial attributes.
      */
     public function __construct(?array $attributes = [])
     {
-        if ($attributes) {
+        if ($attributes !== null) {
             foreach ($attributes as $key => $value) {
                 $this->attributes[$key] = $value;
             }
@@ -46,31 +50,33 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
     /**
      * Get the first attribute value.
      *
-     * @return mixed First attribute value or null if empty.
+     * @return AttributeValue First attribute value or null if empty.
      */
     public function first(): mixed
     {
-        return reset($this->attributes) ?: null;
+        $first = reset($this->attributes);
+        return $first === false ? null : $first;
     }
 
     /**
      * Get the last attribute value.
      *
-     * @return mixed Last attribute value or null if empty.
+     * @return AttributeValue Last attribute value or null if empty.
      */
     public function end(): mixed
     {
-        return end($this->attributes) ?: null;
+        $last = end($this->attributes);
+        return $last === false ? null : $last;
     }
 
     /**
      * Add an attribute.
      *
      * @param MessageAttribute $attribute Attribute key.
-     * @param mixed $value
+     * @param AttributeValue $value
      * @return self
      */
-    public function add(MessageAttribute $attribute, mixed $value = null): self
+    public function add(MessageAttribute $attribute, InternetAddress|array|int|string|null $value = null): self
     {
 //        $messageAttrExist = (bool)array_filter(MessageAttribute::cases(), fn($attribute) => $attribute->name === $key);
 //
@@ -97,7 +103,7 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
     /**
      * Get all attributes.
      *
-     * @return array
+     * @return array<string, AttributeValue>
      */
     public function all(): array
     {
@@ -107,7 +113,7 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
     /**
      * Get all attribute keys.
      *
-     * @return array
+     * @return list<string>
      */
     public function keys(): array
     {
@@ -117,7 +123,7 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
     /**
      * Get all attribute values.
      *
-     * @return array
+     * @return list<AttributeValue>
      */
     public function values(): array
     {
@@ -127,7 +133,7 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
     /**
      * Merge attributes into the current attributes.
      *
-     * @param array $attributes Attributes to merge.
+     * @param array<string, AttributeValue> $attributes Attributes to merge.
      * @return void
      */
     public function merge(array $attributes): void
@@ -141,10 +147,10 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
      * Get an attribute by key.
      *
      * @param MessageAttribute|string $attribute Attribute.
-     * @param mixed $default Default value if attribute is not found.
-     * @return mixed
+     * @param AttributeValue $default Default value if attribute is not found.
+     * @return AttributeValue
      */
-    public function get(MessageAttribute|string $attribute, mixed $default = null): mixed
+    public function get(MessageAttribute|string $attribute, InternetAddress|array|int|string|null $default = null): mixed
     {
         return $this->attributes[is_string($attribute) ? $attribute : $attribute->name] ?? $default;
     }
@@ -152,7 +158,7 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
     /**
      * Apply a callback to all attributes.
      *
-     * @param callable $func Callback function.
+     * @param callable(AttributeValue): AttributeValue $func Callback function.
      * @return void
      */
     public function map(callable $func): void
@@ -176,6 +182,7 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
      *
      * @return int
      */
+    #[\Override]
     public function count(): int
     {
         return count($this->attributes);
@@ -183,7 +190,10 @@ class MessageAttributeCollection implements Countable, IteratorAggregate
 
     /**
      * {@inheritdoc}
+     *
+     * @return ArrayIterator<string, AttributeValue>
      */
+    #[\Override]
     public function getIterator(): Traversable
     {
         return new ArrayIterator($this->attributes);

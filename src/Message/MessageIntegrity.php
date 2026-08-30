@@ -14,7 +14,7 @@ namespace Webrtc\STUN\Message;
 /**
  * Class to handle message integrity and fingerprint calculations.
  */
-class MessageIntegrity
+final class MessageIntegrity
 {
     public const HEADER_LENGTH = 20;
     private const INTEGRITY_LENGTH = 24;

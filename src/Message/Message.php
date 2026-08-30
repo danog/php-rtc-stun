@@ -11,6 +11,7 @@
 
 namespace Webrtc\STUN\Message;
 
+use Amp\Socket\InternetAddress;
 use Stringable;
 use Random\RandomException;
 use Webrtc\Exception\InvalidArgumentException;
@@ -25,7 +26,7 @@ use Webrtc\STUN\Utils;
  *
  * @link https://datatracker.ietf.org/doc/html/rfc5389#page-10
  */
-class Message implements MessageInterface
+final class Message implements MessageInterface
 {
     private string $transactionId;
     private MessageAttributeCollection $_attributes;
@@ -48,6 +49,7 @@ class Message implements MessageInterface
      *
      * @return MessageAttributeCollection
      */
+    #[\Override]
     public function attributes(): MessageAttributeCollection
     {
         return $this->_attributes;
@@ -58,6 +60,7 @@ class Message implements MessageInterface
      *
      * @return string
      */
+    #[\Override]
     public function getTransactionId(): string
     {
         return $this->transactionId;
@@ -66,6 +69,7 @@ class Message implements MessageInterface
     /**
      * @return MessageClass
      */
+    #[\Override]
     public function getMessageClass(): MessageClass
     {
         return $this->messageClass;
@@ -74,6 +78,7 @@ class Message implements MessageInterface
     /**
      * @return MessageMethod
      */
+    #[\Override]
     public function getMessageMethod(): MessageMethod
     {
         return $this->messageMethod;
@@ -84,6 +89,7 @@ class Message implements MessageInterface
      *
      * @param string $transactionId
      */
+    #[\Override]
     public function setTransactionId(string $transactionId): void
     {
         $this->transactionId = $transactionId;
@@ -94,6 +100,7 @@ class Message implements MessageInterface
      *
      * @param string $key The key for HMAC.
      */
+    #[\Override]
     public function addMessageIntegrity(string $key): void
     {
         $this->_attributes->add(MessageAttribute::MESSAGE_INTEGRITY, MessageIntegrity::messageIntegrity($this->encode(), $key));
@@ -105,6 +112,7 @@ class Message implements MessageInterface
      *
      * @return string
      */
+    #[\Override]
     public function encode(): string
     {
         $encodedAttributes = $this->getEncodedAttributes();
@@ -127,9 +135,10 @@ class Message implements MessageInterface
         $data = '';
         foreach ($this->_attributes as $attrName => $attrValue) {
             [$attrType, $packedData] = MessageAttributeEncoder::encode($attrName, $attrValue, $this->transactionId);
-            $attrLen = strlen($packedData ?? "");
+            $packedBytes = $packedData === null ? '' : $packedData;
+            $attrLen = strlen($packedBytes);
             $padLen = Utils::paddingLength($attrLen);
-            $data .= pack('nn', $attrType, $attrLen) . $packedData . str_repeat("\0", $padLen);
+            $data .= pack('nn', $attrType, $attrLen) . $packedBytes . str_repeat("\0", $padLen);
         }
 
         return $data;
@@ -144,13 +153,20 @@ class Message implements MessageInterface
      * @throws InvalidArgumentException If the message is invalid.
      * @throws RandomException
      */
+    #[\Override]
     public static function decode(string $data, ?string $integrityKey = null): static
     {
         if (strlen($data) < MessageIntegrity::HEADER_LENGTH) {
             throw new InvalidArgumentException("STUN message length is less than 20 bytes");
         }
 
-        [$messageType, $length, , $transactionId] = array_values(unpack('nmessageType/nlength/Ncookie/a12transactionId', substr($data, 0, MessageIntegrity::HEADER_LENGTH)));
+        $header = unpack('nmessageType/nlength/Ncookie/a12transactionId', substr($data, 0, MessageIntegrity::HEADER_LENGTH));
+        if ($header === false) {
+            throw new InvalidArgumentException("Failed to unpack STUN message header");
+        }
+        $messageType = (int) $header['messageType'];
+        $length = (int) $header['length'];
+        $transactionId = (string) $header['transactionId'];
 
         if (strlen($data) !== MessageIntegrity::HEADER_LENGTH + $length) {
             throw new InvalidArgumentException("STUN message length does not match");
@@ -173,7 +189,7 @@ class Message implements MessageInterface
      * @param string $data
      * @param string $transactionId
      * @param string|null $integrityKey
-     * @return array
+     * @return array<string, InternetAddress|array<array-key, mixed>|int|string|null>
      */
     private static function getDecodedAttributes(string $data, string $transactionId, ?string $integrityKey): array
     {
@@ -182,7 +198,12 @@ class Message implements MessageInterface
 
         while ($pos <= strlen($data) - 4) {
 
-            [$attrType, $attrLen] = array_values(unpack('nattrType/nattrLen', substr($data, $pos, 4)));
+            $attrHeader = unpack('nattrType/nattrLen', substr($data, $pos, 4));
+            if ($attrHeader === false) {
+                throw new InvalidArgumentException("Failed to unpack STUN attribute header");
+            }
+            $attrType = (int) $attrHeader['attrType'];
+            $attrLen = (int) $attrHeader['attrLen'];
 
             $value = substr($data, $pos + 4, $attrLen);
             $padLen = Utils::paddingLength($attrLen);
@@ -214,16 +235,17 @@ class Message implements MessageInterface
      *
      * @param MessageClass $messageClass The message class.
      * @param MessageMethod $messageMethod The message method.
-     * @param array $attributes The message attributes.
+     * @param array<string, InternetAddress|array<array-key, mixed>|int|string|null> $attributes The message attributes.
      * @param string|null $integrityKey
      * @return Message The Message object.
      * @throws RandomException
      */
+    #[\Override]
     public static function new(MessageClass $messageClass, MessageMethod $messageMethod, array $attributes = [], ?string $integrityKey = null): MessageInterface
     {
         $message = new static($messageClass, $messageMethod);
         $message->attributes()->merge($attributes);
-        if ($integrityKey) {
+        if ($integrityKey !== null && $integrityKey !== '') {
             $message->addMessageIntegrity($integrityKey);
         }
 
@@ -233,6 +255,7 @@ class Message implements MessageInterface
     /**
      * @return string
      */
+    #[\Override]
     public function __toString(): string
     {
         return $this->encode();
@@ -243,6 +266,7 @@ class Message implements MessageInterface
      *
      * @return string
      */
+    #[\Override]
     public function humanReadable(): string
     {
         $info = [
@@ -269,12 +293,20 @@ class Message implements MessageInterface
         $attr = '[';
 
         foreach ($this->attributes()->all() as $attrName => $attrVal) {
-            $attrVal = is_array($attrVal) ? "(" . implode(", ", $attrVal) . ")" : $attrVal;
-            $attrVal = $attrVal instanceof Stringable ? (string) $attrVal : $attrVal;
-            if (in_array($attrName, ["MESSAGE_INTEGRITY"])){
-                $attrVal = bin2hex($attrVal);
+            if (is_array($attrVal)) {
+                $rendered = "(" . implode(", ", array_map(
+                    static fn(mixed $v): string => is_scalar($v) ? (string) $v : get_debug_type($v),
+                    $attrVal
+                )) . ")";
+            } elseif (is_scalar($attrVal) || $attrVal instanceof Stringable) {
+                $rendered = (string) $attrVal;
+            } else {
+                $rendered = get_debug_type($attrVal);
             }
-            $attr .= $attrName . ": " . $attrVal . ", ";
+            if ($attrName === "MESSAGE_INTEGRITY") {
+                $rendered = bin2hex($rendered);
+            }
+            $attr .= $attrName . ": " . $rendered . ", ";
         }
 
         return substr($attr, 0, -2) . "]";

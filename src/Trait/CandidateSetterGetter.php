@@ -11,24 +11,24 @@
 
 namespace Webrtc\STUN\Trait;
 
-use Webrtc\ICE\RTCIceCandidate;
+use Webrtc\STUN\IceCandidateInterface;
 
 /**
  * Trait CandidateSetterGetter
  *
- * Provides getter and setter methods for RTCIceCandidate object
+ * Provides getter and setter methods for the ICE candidate object
  */
 trait CandidateSetterGetter
 {
-    /** @var RTCIceCandidate|null The ICE candidate object */
-    private ?RTCIceCandidate $candidate = null;
+    /** @var IceCandidateInterface|null The ICE candidate object */
+    private ?IceCandidateInterface $candidate = null;
 
     /**
      * Get the current ICE candidate
      *
-     * @return RTCIceCandidate|null The current ICE candidate or null if is not set
+     * @return IceCandidateInterface|null The current ICE candidate or null if is not set
      */
-    public function getCandidate(): ?RTCIceCandidate
+    public function getCandidate(): ?IceCandidateInterface
     {
         return $this->candidate;
     }
@@ -36,10 +36,10 @@ trait CandidateSetterGetter
     /**
      * Set the ICE candidate
      *
-     * @param RTCIceCandidate $candidate The ICE candidate to set
+     * @param IceCandidateInterface $candidate The ICE candidate to set
      * @return void
      */
-    public function setCandidate(RTCIceCandidate $candidate): void
+    public function setCandidate(IceCandidateInterface $candidate): void
     {
         $this->candidate = $candidate;
     }

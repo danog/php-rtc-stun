@@ -30,10 +30,8 @@ use function Amp\Socket\bindUdpSocket;
  *
  * Handles STUN protocol operations including message encoding/decoding,
  * transaction management, and communication with STUN servers.
- *
- * @implements StunInterface
  */
-class Stun extends Datagram implements StunInterface
+final class Stun extends Datagram implements StunInterface
 {
     use Request;
 
@@ -67,12 +65,16 @@ class Stun extends Datagram implements StunInterface
      * @return void
      * @throws RandomException
      */
+    #[\Override]
     protected function onReceived(string $data, InternetAddress $peerAddress): void
     {
         if ($message = $this->decodeMessage($data)) {
             $this->handleMessage($message, $peerAddress, $data);
         } else {
-            $this->receiver->onDataReceived($data, $this->getCandidate()->getComponentId());
+            $candidate = $this->getCandidate();
+            if ($candidate !== null) {
+                $this->receiver->onDataReceived($data, $candidate->getComponentId());
+            }
         }
     }
 
@@ -130,6 +132,7 @@ class Stun extends Datagram implements StunInterface
      * @param Throwable $e The thrown exception
      * @return void
      */
+    #[\Override]
     protected function onError(Throwable $e): void
     {
         $this->receiver->onError($e);
@@ -140,6 +143,7 @@ class Stun extends Datagram implements StunInterface
      *
      * @return void
      */
+    #[\Override]
     protected function onClose(): void
     {
         $this->receiver->onClose();
@@ -150,6 +154,7 @@ class Stun extends Datagram implements StunInterface
      *
      * @return string UUID string identifier
      */
+    #[\Override]
     public function getId(): string
     {
         return $this->id;
@@ -166,13 +171,14 @@ class Stun extends Datagram implements StunInterface
      * @param array|null $portRange
      * @return StunInterface
      */
+    #[\Override]
     public static function create(
         ReceiverInterface $receiver,
         InternetAddress $address,
         ?LoggerInterface $logger = null,
         ?array $portRange = null
     ): StunInterface {
-        if ($portRange) {
+        if ($portRange !== null && $portRange !== []) {
             $address = new InternetAddress(
                 $address->getAddress(),
                 self::getRandomPort($portRange, $address)
@@ -185,7 +191,7 @@ class Stun extends Datagram implements StunInterface
         } catch (Throwable $e) {
             throw new RuntimeException(
                 sprintf("Could not bind to %s - %s", $address, $e->getMessage()),
-                $e->getCode(),
+                (int) $e->getCode(),
                 $e
             );
         }
@@ -196,12 +202,13 @@ class Stun extends Datagram implements StunInterface
      *
      * @param array $portRange Array containing [minPort, maxPort]
      * @param InternetAddress $address Host address to test binding
-     * @return int
+     * @return int<0, 65535>
      * @throws RuntimeException If no available port is found
      */
     private static function getRandomPort(array $portRange, InternetAddress $address): int
     {
-        [$min, $max] = $portRange;
+        $min = (int) ($portRange[0] ?? 0);
+        $max = (int) ($portRange[1] ?? 0);
 
         if ($min < 1 || $max > 65535 || $min > $max) {
             throw new InvalidArgumentException("Invalid port range [$min, $max]");
@@ -211,6 +218,7 @@ class Stun extends Datagram implements StunInterface
         shuffle($ports);
 
         foreach ($ports as $port) {
+            assert($port >= 0 && $port <= 65535);
             $candidateAddress = new InternetAddress($address->getAddress(), $port);
             try {
                 $socket = bindUdpSocket($candidateAddress);

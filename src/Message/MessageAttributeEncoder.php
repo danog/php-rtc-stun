@@ -83,7 +83,7 @@ final class MessageAttributeEncoder
      * @param string $attrName The name of the attribute to encode.
      * @param int|string|array|InternetAddress|null $data The data to encode.
      * @param string $transactionId The transaction ID.
-     * @return array The encoded attribute type and value.
+     * @return array{int, string|null} The encoded attribute type and value.
      */
     public static function encode(
         string $attrName,
@@ -104,7 +104,7 @@ final class MessageAttributeEncoder
             self::CODEC_UNSIGNED_SHORT => self::packUnsignedShort($data),
             self::CODEC_UNSIGNED_64 => self::packUnsigned64($data),
             self::CODEC_ERROR_CODE => self::packErrorCode($data),
-            self::CODEC_VALUE => $data,
+            self::CODEC_VALUE => self::packRawValue($data),
             self::CODEC_NULL => null,
         };
 
@@ -117,7 +117,7 @@ final class MessageAttributeEncoder
      * @param int $attrType The type of the attribute to decode.
      * @param string $data The data to decode.
      * @param string $transactionId The transaction ID.
-     * @return array The decoded attribute name and value.
+     * @return array{string, InternetAddress|array<array-key, mixed>|int|string|null} The decoded attribute name and value.
      */
     public static function decode(int $attrType, string $data, string $transactionId): array
     {
@@ -178,6 +178,20 @@ final class MessageAttributeEncoder
     }
 
     /**
+     * Validate and return a raw attribute value (a byte string) for CODEC_VALUE attributes.
+     *
+     * @param mixed $data The raw value.
+     * @return string|null The validated raw value.
+     */
+    private static function packRawValue(mixed $data): ?string
+    {
+        if ($data !== null && !is_string($data)) {
+            throw new InvalidArgumentException('Raw STUN attribute value must be a string or null');
+        }
+        return $data;
+    }
+
+    /**
      * Unpack an address.
      *
      * @param string $data The packed address data.
@@ -189,7 +203,12 @@ final class MessageAttributeEncoder
         if (strlen($data) < 4) {
             throw new InvalidArgumentException("STUN address length is less than 4 bytes");
         }
-        [, $protocol, $port] = array_values(unpack('Creserved/Cprotocol/nport', substr($data, 0, 4)));
+        $header = unpack('Creserved/Cprotocol/nport', substr($data, 0, 4));
+        if ($header === false) {
+            throw new InvalidArgumentException("Failed to unpack STUN address header");
+        }
+        $protocol = (int) $header['protocol'];
+        $port = (int) $header['port'];
 
         $address = substr($data, 4);
 
@@ -197,15 +216,20 @@ final class MessageAttributeEncoder
             if (strlen($address) !== 4) {
                 throw new InvalidArgumentException("STUN address has invalid length for IPv4");
             }
-            return new InternetAddress(inet_ntop($address), $port);
         } elseif ($protocol === self::IPV6_PROTOCOL) {
             if (strlen($address) !== 16) {
                 throw new InvalidArgumentException("STUN address has invalid length for IPv6");
             }
-            return new InternetAddress(inet_ntop($address), $port);
         } else {
             throw new InvalidArgumentException("STUN address has unknown protocol");
         }
+
+        $textAddress = inet_ntop($address);
+        if ($textAddress === false) {
+            throw new InvalidArgumentException("STUN address bytes are not a valid IP address");
+        }
+        assert($port >= 0 && $port <= 65535);
+        return new InternetAddress($textAddress, $port);
     }
 
     /**
@@ -236,19 +260,24 @@ final class MessageAttributeEncoder
     /**
      * Pack an error code.
      *
-     * @param array $data The [code, reason] pair.
+     * @param mixed $data The [code, reason] pair.
      * @return string The packed error code.
      */
-    public static function packErrorCode(array $data): string
+    public static function packErrorCode(mixed $data): string
     {
-        return pack('nCC', 0, intdiv($data[0], 100), $data[0] % 100) . $data[1];
+        if (!is_array($data) || !isset($data[0], $data[1])) {
+            throw new InvalidArgumentException('STUN error-code attribute must be a [code, reason] pair');
+        }
+        $code = (int) $data[0];
+        $reason = (string) $data[1];
+        return pack('nCC', 0, intdiv($code, 100), $code % 100) . $reason;
     }
 
     /**
      * Unpack an error code.
      *
      * @param string $data The packed error code data.
-     * @return array The unpacked error code and reason.
+     * @return array{int, string} The unpacked error code and reason.
      * @throws InvalidArgumentException If the data is invalid.
      */
     public static function unpackErrorCode(string $data): array
@@ -256,7 +285,12 @@ final class MessageAttributeEncoder
         if (strlen($data) < 4) {
             throw new InvalidArgumentException("STUN error code is less than 4 bytes");
         }
-        [, $codeHigh, $codeLow] = array_values(unpack('nreserved/CcodeHigh/CcodeLow', substr($data, 0, 4)));
+        $header = unpack('nreserved/CcodeHigh/CcodeLow', substr($data, 0, 4));
+        if ($header === false) {
+            throw new InvalidArgumentException("Failed to unpack STUN error code");
+        }
+        $codeHigh = (int) $header['codeHigh'];
+        $codeLow = (int) $header['codeLow'];
         $reason = substr($data, 4);
         return [$codeHigh * 100 + $codeLow, $reason];
     }
@@ -264,11 +298,14 @@ final class MessageAttributeEncoder
     /**
      * Pack an unsigned integer.
      *
-     * @param int $data The value to pack.
+     * @param mixed $data The value to pack.
      * @return string The packed unsigned integer.
      */
-    public static function packUnsigned(int $data): string
+    public static function packUnsigned(mixed $data): string
     {
+        if (!is_int($data)) {
+            throw new InvalidArgumentException('STUN unsigned attribute must be an integer');
+        }
         return pack('N', $data);
     }
 
@@ -280,17 +317,24 @@ final class MessageAttributeEncoder
      */
     public static function unpackUnsigned(string $data): int
     {
-        return unpack('N', $data)[1];
+        $unpacked = unpack('Nvalue', $data);
+        if ($unpacked === false) {
+            throw new InvalidArgumentException("Failed to unpack unsigned integer");
+        }
+        return (int) $unpacked['value'];
     }
 
     /**
      * Pack an unsigned short integer.
      *
-     * @param int $data The value to pack.
+     * @param mixed $data The value to pack.
      * @return string The packed unsigned short integer.
      */
-    public static function packUnsignedShort(int $data): string
+    public static function packUnsignedShort(mixed $data): string
     {
+        if (!is_int($data)) {
+            throw new InvalidArgumentException('STUN unsigned-short attribute must be an integer');
+        }
         return pack('n', $data) . "\x00\x00";
     }
 
@@ -302,17 +346,24 @@ final class MessageAttributeEncoder
      */
     public static function unpackUnsignedShort(string $data): int
     {
-        return unpack('n', substr($data, 0, 2))[0];
+        $unpacked = unpack('nvalue', substr($data, 0, 2));
+        if ($unpacked === false) {
+            throw new InvalidArgumentException("Failed to unpack unsigned short integer");
+        }
+        return (int) $unpacked['value'];
     }
 
     /**
      * Pack a signed 64-bit integer in network byte order.
      *
-     * @param int $data The value to pack.
+     * @param mixed $data The value to pack.
      * @return string The packed 64-bit integer.
      */
-    public static function packUnsigned64(int $data): string
+    public static function packUnsigned64(mixed $data): string
     {
+        if (!is_int($data)) {
+            throw new InvalidArgumentException('STUN unsigned-64 attribute must be an integer');
+        }
         return pack('J', $data);
     }
 
@@ -324,6 +375,10 @@ final class MessageAttributeEncoder
      */
     public static function unpackUnsigned64(string $data): int
     {
-        return unpack('J', $data)[1];
+        $unpacked = unpack('Jvalue', $data);
+        if ($unpacked === false) {
+            throw new InvalidArgumentException("Failed to unpack 64-bit integer");
+        }
+        return (int) $unpacked['value'];
     }
 }

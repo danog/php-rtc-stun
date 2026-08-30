@@ -12,7 +12,6 @@
 namespace Webrtc\STUN;
 
 use Amp\Socket\InternetAddress;
-use Webrtc\ICE\RTCIceCandidate;
 
 interface BaseProtocolInterface
 {
@@ -34,7 +33,7 @@ interface BaseProtocolInterface
 
     public function getRemoteAddress(): ?InternetAddress;
 
-    public function getCandidate(): ?RTCIceCandidate;
+    public function getCandidate(): ?IceCandidateInterface;
 
-    public function setCandidate(RTCIceCandidate $candidate): void;
+    public function setCandidate(IceCandidateInterface $candidate): void;
 }

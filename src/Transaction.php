@@ -17,7 +17,6 @@ use Revolt\EventLoop;
 use Webrtc\STUN\Enum\MessageClass;
 use Webrtc\STUN\Exception\TransactionFailedException;
 use Webrtc\STUN\Exception\TransactionTimeoutException;
-use Webrtc\STUN\Message\Message;
 use Webrtc\STUN\Message\MessageInterface;
 
 /**
@@ -25,15 +24,17 @@ use Webrtc\STUN\Message\MessageInterface;
  *
  * @see https://datatracker.ietf.org/doc/html/rfc5389#section-7.2 Sending the Request or Indication
  */
-class Transaction implements TransactionInterface
+final class Transaction implements TransactionInterface
 {
     private const RETRY_MAX = 5;
     private const RETRY_RTO = 0.5;
     private ?InternetAddress $address;
+
+    /** @var DeferredFuture<array{MessageInterface, InternetAddress|null}> */
     private DeferredFuture $deferred;
     private MessageInterface $message;
     private float $timeoutDelay;
-    private BaseProtocolInterface $transport;
+    private IceConnectionProtocolInterface $transport;
     private int $tries = 0;
     private int $triesMax;
     private bool $isResolvedOrReject = false;
@@ -44,14 +45,15 @@ class Transaction implements TransactionInterface
     /**
      * Transaction constructor.
      *
-     * @param Message $message The STUN request message.
+     * @param MessageInterface $message The STUN request message.
      * @param InternetAddress|null $address The destination address.
-     * @param BaseProtocolInterface $transport The protocol object.
+     * @param IceConnectionProtocolInterface $transport The protocol object.
      * @param int|null $retransmissions Number of retransmissions, default is RETRY_MAX.
      */
-    public function __construct(MessageInterface $message, ?InternetAddress $address, BaseProtocolInterface $transport, ?int $retransmissions = null)
+    public function __construct(MessageInterface $message, ?InternetAddress $address, IceConnectionProtocolInterface $transport, ?int $retransmissions = null)
     {
         $this->address = $address;
+        /** @var DeferredFuture<array{MessageInterface, InternetAddress|null}> */
         $this->deferred = new DeferredFuture();
         $this->message = $message;
         $this->timeoutDelay = self::RETRY_RTO;
@@ -65,6 +67,7 @@ class Transaction implements TransactionInterface
      * @param MessageInterface $message The response message.
      * @param InternetAddress|null $address The source address.
      */
+    #[\Override]
     public function responseReceived(MessageInterface $message, ?InternetAddress $address): void
     {
         if ($this->isResolvedOrReject) {
@@ -72,7 +75,7 @@ class Transaction implements TransactionInterface
         }
 
         $this->settle();
-        unset($this->transport->transactionIds[$message->getTransactionId()]);
+        $this->transport->removeTransaction($message->getTransactionId());
 
         if ($message->getMessageClass() === MessageClass::RESPONSE) {
             $this->deferred->complete([$message, $address]);
@@ -88,6 +91,7 @@ class Transaction implements TransactionInterface
      * @throws TransactionFailedException If the peer answered with an error response.
      * @throws TransactionTimeoutException If no answer arrived before the retries ran out.
      */
+    #[\Override]
     public function execute(): array
     {
         $this->trySend();
@@ -117,7 +121,7 @@ class Transaction implements TransactionInterface
             }
         });
 
-        $this->timeoutDelay *= 2;
+        $this->timeoutDelay *= 2.0;
         $this->tries += 1;
     }
 

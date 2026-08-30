@@ -16,7 +16,7 @@ namespace Webrtc\STUN;
  *
  * Provides helper methods for STUN (Session Traversal Utilities for NAT) protocol operations
  */
-class Utils
+final class Utils
 {
     /**
      * Calculate required padding length for STUN attributes

@@ -14,7 +14,7 @@ namespace Webrtc\STUN\Exception;
 /**
  * Exception class for STUN transaction timeouts.
  */
-class TransactionTimeoutException extends TransactionException
+final class TransactionTimeoutException extends TransactionException
 {
     public function __construct()
     {

@@ -80,6 +80,7 @@ abstract class Datagram extends BaseProtocol
      * @param InternetAddress|null $remoteAddress The target address (uses default remote address if null)
      * @return void
      */
+    #[\Override]
     public function send(string $data, ?InternetAddress $remoteAddress = null): void
     {
         $remoteAddress ??= $this->remoteAddress;
@@ -95,6 +96,7 @@ abstract class Datagram extends BaseProtocol
      *
      * @return void
      */
+    #[\Override]
     public function close(): void
     {
         $this->socket->close();
@@ -108,6 +110,7 @@ abstract class Datagram extends BaseProtocol
      *
      * @return void
      */
+    #[\Override]
     public function end(): void
     {
         $this->close();
@@ -118,6 +121,7 @@ abstract class Datagram extends BaseProtocol
      *
      * @return void
      */
+    #[\Override]
     public function resume(): void
     {
         $this->paused = false;
@@ -128,6 +132,7 @@ abstract class Datagram extends BaseProtocol
      *
      * @return void
      */
+    #[\Override]
     public function pause(): void
     {
         $this->paused = true;
@@ -138,6 +143,7 @@ abstract class Datagram extends BaseProtocol
      *
      * @return InternetAddress The local socket address
      */
+    #[\Override]
     public function getLocalAddress(): InternetAddress
     {
         return $this->socket->getAddress();
@@ -148,6 +154,7 @@ abstract class Datagram extends BaseProtocol
      *
      * @return string The local host IP address
      */
+    #[\Override]
     public function getLocalHost(): string
     {
         return $this->getLocalAddress()->getAddress();
@@ -158,6 +165,7 @@ abstract class Datagram extends BaseProtocol
      *
      * @return int The local port number
      */
+    #[\Override]
     public function getLocalPort(): int
     {
         return $this->getLocalAddress()->getPort();
@@ -168,6 +176,7 @@ abstract class Datagram extends BaseProtocol
      *
      * @return InternetAddress|null The remote address or null if not connected
      */
+    #[\Override]
     public function getRemoteAddress(): ?InternetAddress
     {
         return $this->remoteAddress ?? null;

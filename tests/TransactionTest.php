@@ -41,6 +41,7 @@ class TransactionTest extends TestCase
         parent::setUp();
         $this->stun = Mockery::mock(Stun::class);
         $this->stun->shouldReceive('sendMessage');
+        $this->stun->shouldReceive('removeTransaction');
     }
 
     public function testTransactionTimeout()

@@ -28,6 +28,17 @@ trait Request
     public array $transactionIds = [];
 
     /**
+     * Remove a pending transaction by its ID.
+     *
+     * @param string $transactionId
+     * @return void
+     */
+    public function removeTransaction(string $transactionId): void
+    {
+        unset($this->transactionIds[$transactionId]);
+    }
+
+    /**
      * Sends a STUN/TURN message to a specified address
      *
      * @param MessageInterface $message The message to send
@@ -45,7 +56,7 @@ trait Request
      *
      * @param MessageInterface $message The request message to send
      * @param InternetAddress|null $address The target address (optional)
-     * @param string|null $integrityKey The key for message integrity (optional)
+     * @param string|null $integrity_key The key for message integrity (optional)
      * @param int $retransmissions Number of retransmission attempts (default: 0)
      * @return array{MessageInterface, InternetAddress|null} The response and where it came from.
      * @throws InvalidArgumentException If the message transaction is already pending
@@ -53,15 +64,15 @@ trait Request
     public function request(
         MessageInterface $message,
         ?InternetAddress $address = null,
-        ?string $integrityKey = null,
+        ?string $integrity_key = null,
         int $retransmissions = 0
     ): array {
         if (isset($this->transactionIds[$message->getTransactionId()])) {
             throw new InvalidArgumentException("The message is in pending");
         }
 
-        if (isset($integrityKey)) {
-            $message->addMessageIntegrity($integrityKey);
+        if (isset($integrity_key)) {
+            $message->addMessageIntegrity($integrity_key);
         }
 
         $transaction = new Transaction($message, $address, $this, $retransmissions);

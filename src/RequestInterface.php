@@ -18,6 +18,8 @@ interface RequestInterface
 {
     public function sendMessage(MessageInterface $message, ?InternetAddress $address): void;
 
+    public function removeTransaction(string $transactionId): void;
+
     /**
      * Send a request and wait for its response.
      *
