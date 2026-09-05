@@ -61,16 +61,27 @@ abstract class Datagram extends BaseProtocol
      */
     public function __unserialize(array $data): void
     {
-        $bind = null;
+        $bindHost = null;
+        $bindPort = null;
         foreach ($data as $key => $value) {
-            if (is_array($value) && isset($value['_udp'])) {
-                $bind = $value['_udp'];
-                unset($data[$key]);
+            if (!is_array($value) || !isset($value['_udp']) || !is_array($value['_udp'])) {
+                continue;
             }
+            $udp = $value['_udp'];
+            if (!isset($udp[0], $udp[1])) {
+                continue;
+            }
+            $port = (int) $udp[1];
+            if ($port < 0 || $port > 65535) {
+                continue;
+            }
+            $bindHost = (string) $udp[0];
+            $bindPort = $port;
+            unset($data[$key]);
         }
         SerializableState::import($this, $data);
-        if (is_array($bind) && isset($bind[0], $bind[1])) {
-            $this->socket = bindUdpSocket(new InternetAddress((string) $bind[0], (int) $bind[1]));
+        if ($bindHost !== null && $bindPort !== null) {
+            $this->socket = bindUdpSocket(new InternetAddress($bindHost, $bindPort));
             $this->listen();
         }
     }

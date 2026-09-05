@@ -186,7 +186,9 @@ final class Transaction implements TransactionInterface
     public function __unserialize(array $data): void
     {
         SerializableState::import($this, $data);
-        $this->deferred = new DeferredFuture();
+        /** @var DeferredFuture<array{MessageInterface, InternetAddress|null}> $deferred */
+        $deferred = new DeferredFuture();
+        $this->deferred = $deferred;
         $this->timer = null;
         if (!$this->isResolvedOrReject) {
             $this->trySend();
