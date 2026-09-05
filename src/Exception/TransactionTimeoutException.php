@@ -16,8 +16,8 @@ namespace Webrtc\STUN\Exception;
  */
 final class TransactionTimeoutException extends TransactionException
 {
-    public function __construct()
+    public function __construct(?\Throwable $previous = null)
     {
-        parent::__construct("STUN transaction timed out");
+        parent::__construct("STUN transaction timed out", previous: $previous);
     }
 }

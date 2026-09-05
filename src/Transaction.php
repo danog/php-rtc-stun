@@ -111,7 +111,20 @@ final class Transaction implements TransactionInterface
             return;
         }
 
-        $this->transport->sendMessage($this->message, $this->address);
+        try {
+            $this->transport->sendMessage($this->message, $this->address);
+        } catch (\Throwable $e) {
+            // A retransmission runs from a timer callback, outside the caller's try/catch, so
+            // a send that fails here (typically because the socket was closed while the
+            // transaction was still in flight) would otherwise escape as an uncaught event-loop
+            // exception. The transaction can no longer complete, so settle it as a timeout and
+            // let the awaiting caller handle it like any other unanswered request.
+            $this->settle();
+            $this->transport->removeTransaction($this->message->getTransactionId());
+            $this->deferred->error(new TransactionTimeoutException(previous: $e));
+
+            return;
+        }
 
         $this->timer = EventLoop::delay($this->timeoutDelay, function (): void {
             $this->timer = null;

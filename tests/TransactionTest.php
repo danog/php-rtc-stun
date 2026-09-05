@@ -75,4 +75,25 @@ class TransactionTest extends TestCase
         $e = new TransactionTimeoutException();
         $this->assertEquals("STUN transaction timed out", $e->getMessage());
     }
+
+    public function testTransactionSendFailureSettlesAsTimeout()
+    {
+        // A send that fails during (re)transmission — e.g. the socket was closed while the
+        // transaction was still in flight — must settle the transaction rather than let the
+        // exception escape the timer callback as an uncaught event-loop error.
+        $sendError = new \RuntimeException('The datagram socket is not writable');
+        $stun = Mockery::mock(Stun::class);
+        $stun->shouldReceive('sendMessage')->andThrow($sendError);
+        $stun->shouldReceive('removeTransaction');
+
+        $message = Message::new(MessageClass::REQUEST, MessageMethod::BINDING);
+        $transaction = new Transaction($message, new InternetAddress('127.0.0.1', 2365), $stun, 3);
+
+        try {
+            $transaction->execute();
+            $this->fail('Expected a TransactionTimeoutException.');
+        } catch (TransactionTimeoutException $e) {
+            $this->assertSame($sendError, $e->getPrevious());
+        }
+    }
 }
