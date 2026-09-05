@@ -14,6 +14,7 @@ namespace Webrtc\STUN;
 use Amp\DeferredFuture;
 use Amp\Socket\InternetAddress;
 use Revolt\EventLoop;
+use Webrtc\Mixin\SerializableState;
 use Webrtc\STUN\Enum\MessageClass;
 use Webrtc\STUN\Exception\TransactionFailedException;
 use Webrtc\STUN\Exception\TransactionTimeoutException;
@@ -126,13 +127,7 @@ final class Transaction implements TransactionInterface
             return;
         }
 
-        $this->timer = EventLoop::delay($this->timeoutDelay, function (): void {
-            $this->timer = null;
-
-            if (!$this->isResolvedOrReject) {
-                $this->trySend();
-            }
-        });
+        $this->timer = EventLoop::delay($this->timeoutDelay, $this->onRetransmitTimer(...));
 
         $this->timeoutDelay *= 2.0;
         $this->tries += 1;
@@ -155,10 +150,46 @@ final class Transaction implements TransactionInterface
     }
 
     /**
+     * Retransmit callback for the event-loop timer. Public so it can be rescheduled after unserialize.
+     */
+    public function onRetransmitTimer(): void
+    {
+        $this->timer = null;
+
+        if (!$this->isResolvedOrReject) {
+            $this->trySend();
+        }
+    }
+
+    /**
      * @return DeferredFuture
      */
     public function getDeferred(): DeferredFuture
     {
         return $this->deferred;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function __serialize(): array
+    {
+        return SerializableState::export($this, [
+            'deferred' => null,
+            'timer' => null,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function __unserialize(array $data): void
+    {
+        SerializableState::import($this, $data);
+        $this->deferred = new DeferredFuture();
+        $this->timer = null;
+        if (!$this->isResolvedOrReject) {
+            $this->trySend();
+        }
     }
 }

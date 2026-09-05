@@ -15,7 +15,9 @@ use Amp\Socket\InternetAddress;
 use Amp\Socket\UdpSocket;
 use Throwable;
 use Webrtc\Exception\InvalidArgumentException;
+use Webrtc\Mixin\SerializableState;
 use function Amp\async;
+use function Amp\Socket\bindUdpSocket;
 
 /**
  * User Datagram Protocol
@@ -43,13 +45,44 @@ abstract class Datagram extends BaseProtocol
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function __serialize(): array
+    {
+        $address = $this->socket->getAddress();
+
+        return SerializableState::export($this, [
+            'socket' => ['_udp' => [$address->getAddress(), $address->getPort()]],
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function __unserialize(array $data): void
+    {
+        $bind = null;
+        foreach ($data as $key => $value) {
+            if (is_array($value) && isset($value['_udp'])) {
+                $bind = $value['_udp'];
+                unset($data[$key]);
+            }
+        }
+        SerializableState::import($this, $data);
+        if (is_array($bind) && isset($bind[0], $bind[1])) {
+            $this->socket = bindUdpSocket(new InternetAddress((string) $bind[0], (int) $bind[1]));
+            $this->listen();
+        }
+    }
+
+    /**
      * Deliver incoming datagrams to onReceived() until the socket closes.
      *
      * Reading runs in its own fiber rather than through an event emitter: the socket hands
      * over one datagram per receive() call, so the loop is the natural shape and errors
      * propagate to onError() instead of an unobserved rejection.
      */
-    private function listen(): void
+    protected function listen(): void
     {
         async(function (): void {
             try {
