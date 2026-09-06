@@ -179,7 +179,10 @@ final class Transaction implements TransactionInterface
     public function __serialize(): array
     {
         return SerializableState::export($this, [
-            'deferred' => null,
+            // deferred is non-nullable and holds a suspended fiber that cannot be serialized;
+            // leave it uninitialized on import (SerializableState skips this marker) so
+            // __unserialize can install a fresh one rather than assigning null to a typed property.
+            'deferred' => ['__uninitialized' => true],
             'timer' => null,
         ]);
     }

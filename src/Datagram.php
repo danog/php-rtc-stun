@@ -111,26 +111,56 @@ abstract class Datagram extends BaseProtocol
      */
     protected function listen(): void
     {
-        async(function (): void {
+        // The receive loop must not strongly reference $this, or the fiber the event loop keeps
+        // alive to run it would pin this connection forever — an unset() followed by
+        // gc_collect_cycles() could never reclaim it, and its bound port would leak. It holds the
+        // socket (so it stays parked in receive()) and only a weak reference back to the owner, so
+        // dropping the last real reference lets the connection be collected; __destruct() then
+        // closes the socket, which unblocks receive() and lets this fiber unwind.
+        $weak = \WeakReference::create($this);
+        $socket = $this->socket;
+        async(static function () use ($weak, $socket): void {
             try {
-                while (($received = $this->socket->receive()) !== null) {
+                while (($received = $socket->receive()) !== null) {
+                    $self = $weak->get();
+                    if ($self === null) {
+                        $socket->close();
+
+                        return;
+                    }
                     [$address, $data] = $received;
 
-                    if ($this->paused) {
+                    if ($self->paused) {
                         continue;
                     }
                     // Dispatch in its own fiber. Handling a datagram can block — answering a
                     // binding request may itself start a transaction and wait for its reply —
                     // and doing that inline stops this loop from reading, so the very replies
                     // being waited on never arrive and every transaction times out.
-                    async(fn () => $this->onReceived($data, $address))->ignore();
+                    async(static fn () => $weak->get()?->onReceived($data, $address))->ignore();
+                    unset($self);
                 }
 
-                $this->onClose();
+                $weak->get()?->onClose();
             } catch (Throwable $e) {
-                $this->onError($e);
+                $weak->get()?->onError($e);
             }
         });
+    }
+
+    /**
+     * Release the bound socket when the connection is garbage-collected.
+     *
+     * The receive loop parks a fiber inside the socket's receive() call; closing the socket here
+     * is what unblocks it so the fiber can unwind once the last reference to this connection is
+     * gone. Closing a UDP socket sends nothing on the wire, so a peer sees only silence — exactly
+     * the "the process went away" situation a serialize/unserialize cycle is meant to survive.
+     */
+    public function __destruct()
+    {
+        if (isset($this->socket)) {
+            $this->socket->close();
+        }
     }
 
     /**
