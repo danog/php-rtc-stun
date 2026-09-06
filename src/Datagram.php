@@ -13,6 +13,7 @@ namespace Webrtc\STUN;
 
 use Amp\Socket\BindContext;
 use Amp\Socket\InternetAddress;
+use Amp\Socket\ResourceUdpSocket;
 use Amp\Socket\UdpSocket;
 use Throwable;
 use Webrtc\Exception\InvalidArgumentException;
@@ -121,7 +122,40 @@ abstract class Datagram extends BaseProtocol
         $socket = $this->socket;
         async(static function () use ($weak, $socket): void {
             try {
-                while (($received = $socket->receive()) !== null) {
+                while (true) {
+                    $received = $socket->receive();
+                    if ($received === null) {
+                        // receive() === null covers two very different events. A genuine close nulls
+                        // the underlying resource (isClosed() === true) and ends the loop. On Windows,
+                        // though, a UDP send that draws an ICMP port-unreachable — a dead STUN/TURN
+                        // server, or a peer whose port is not open yet — makes the socket's *next* recv
+                        // fail once with WSAECONNRESET; amphp reports that one-shot error as
+                        // receive() === null and cancels its read watcher, even though the socket is
+                        // still bound and usable. Ending the loop there would tear down the only host
+                        // candidate mid-negotiation (missing srflx candidates, "Binding check failed").
+                        // Instead re-wrap the still-open resource in a fresh socket, which arms a new
+                        // read watcher, and keep reading. POSIX never reaches this branch: it surfaces
+                        // ICMP errors only on connected sockets, and these are unconnected, so recv
+                        // returns null there only on a real close.
+                        if ($socket->isClosed() || !$socket instanceof ResourceUdpSocket) {
+                            break;
+                        }
+                        $resource = $socket->getResource();
+                        if (!\is_resource($resource)) {
+                            break;
+                        }
+                        $socket = new ResourceUdpSocket($resource);
+                        $self = $weak->get();
+                        if ($self === null) {
+                            $socket->close();
+
+                            return;
+                        }
+                        $self->socket = $socket;
+                        unset($self);
+                        continue;
+                    }
+
                     $self = $weak->get();
                     if ($self === null) {
                         $socket->close();
