@@ -150,9 +150,13 @@ final class Transaction implements TransactionInterface
     }
 
     /**
-     * Retransmit callback for the event-loop timer. Public so it can be rescheduled after unserialize.
+     * Retransmit callback for the event-loop timer.
+     *
+     * Armed only as the first-class callable `$this->onRetransmitTimer(...)` passed to
+     * EventLoop::delay(), including when the timer is rescheduled after unserialize. That callable
+     * carries this method's private scope, so it does not need to be public.
      */
-    public function onRetransmitTimer(): void
+    private function onRetransmitTimer(): void
     {
         $this->timer = null;
 
