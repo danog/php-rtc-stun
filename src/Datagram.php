@@ -113,7 +113,24 @@ abstract class Datagram extends BaseProtocol
     {
         async(function (): void {
             try {
-                while (($received = $this->socket->receive()) !== null) {
+                while (true) {
+                    $received = $this->socket->receive();
+
+                    if ($received === null) {
+                        // receive() yields null on a genuine close, but also — on Windows — when a
+                        // previous datagram sent to an unreachable address makes the next recvfrom
+                        // fail with WSAECONNRESET (the SIO_UDP_CONNRESET behaviour). An ICMP
+                        // port-unreachable from a dead STUN server or a peer that has gone away must
+                        // not tear down the host candidate's socket, so only stop once the socket has
+                        // actually closed; otherwise the datagram was dropped and we keep reading.
+                        // On POSIX this branch is only ever reached on a real close, so behaviour
+                        // there is unchanged.
+                        if ($this->socket->isClosed()) {
+                            break;
+                        }
+                        continue;
+                    }
+
                     [$address, $data] = $received;
 
                     if ($this->paused) {
