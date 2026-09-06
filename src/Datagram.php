@@ -158,9 +158,9 @@ abstract class Datagram extends BaseProtocol
      */
     public function __destruct()
     {
-        if (isset($this->socket)) {
-            $this->socket->close();
-        }
+        // socket is always set here: the constructor binds it, a successful unserialize rebinds
+        // it, and __destruct never runs on an object whose __unserialize threw.
+        $this->socket->close();
     }
 
     /**
