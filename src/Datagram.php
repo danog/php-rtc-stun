@@ -11,6 +11,7 @@
 
 namespace Webrtc\STUN;
 
+use Amp\Socket\BindContext;
 use Amp\Socket\InternetAddress;
 use Amp\Socket\UdpSocket;
 use Throwable;
@@ -42,6 +43,21 @@ abstract class Datagram extends BaseProtocol
     public function __construct(protected UdpSocket $socket)
     {
         $this->listen();
+    }
+
+    /**
+     * Bind context shared by every UDP socket a connection opens.
+     *
+     * SO_REUSEPORT (mapped to SO_REUSEADDR on Windows) lets a deserialized connection rebind
+     * to the same local port while the original socket still holds it — the exact situation a
+     * serialize/unserialize cycle produces. Without it macOS and Windows reject the second bind
+     * with "Address already in use"; Linux happens to tolerate it, which is why the gap only
+     * showed on those platforms. Both the original and the rebind must set it for the kernel to
+     * allow the shared port, so every bind in the package routes through here.
+     */
+    protected static function udpBindContext(): BindContext
+    {
+        return (new BindContext())->withReusePort();
     }
 
     /**
@@ -81,7 +97,7 @@ abstract class Datagram extends BaseProtocol
         }
         SerializableState::import($this, $data);
         if ($bindHost !== null && $bindPort !== null) {
-            $this->socket = bindUdpSocket(new InternetAddress($bindHost, $bindPort));
+            $this->socket = bindUdpSocket(new InternetAddress($bindHost, $bindPort), self::udpBindContext());
             $this->listen();
         }
     }

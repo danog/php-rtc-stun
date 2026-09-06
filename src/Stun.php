@@ -186,7 +186,7 @@ final class Stun extends Datagram implements StunInterface
         }
 
         try {
-            $socket = bindUdpSocket($address);
+            $socket = bindUdpSocket($address, self::udpBindContext());
             return new self($receiver, $socket, $logger);
         } catch (Throwable $e) {
             throw new RuntimeException(
@@ -221,6 +221,9 @@ final class Stun extends Datagram implements StunInterface
             assert($port >= 0 && $port <= 65535);
             $candidateAddress = new InternetAddress($address->getAddress(), $port);
             try {
+                // Deliberately a strict bind (no SO_REUSEPORT): this probe must only report a
+                // port as free when nothing else holds it. The real socket opened in create()
+                // adds the reuse flag so a deserialized connection can later rebind the port.
                 $socket = bindUdpSocket($candidateAddress);
                 $socket->close();
 
