@@ -146,6 +146,39 @@ class MessageTest extends TestCase
         Message::decode(str_repeat("\0", 20));
     }
 
+    public function testDecodeSkipsUnknownAttributeType()
+    {
+        // An unrecognised (comprehension-optional) attribute type must be skipped, not rejected.
+        $message = Message::decode($this->buildStunMessage($this->rawAttribute(0x9999, "test")));
+        $this->assertSame([], $message->attributes()->all());
+    }
+
+    public function testDecodeRejectsMalformedKnownAttribute()
+    {
+        // Regression: a known attribute that fails to decode (here ERROR_CODE, 0x0009, with a
+        // sub-4-byte value) was previously swallowed — its name blanked and, crucially, the
+        // FINGERPRINT/MESSAGE-INTEGRITY verification keyed off that name skipped — so a malformed
+        // integrity attribute could bypass the check and be accepted. It must now reject instead.
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("STUN error code is less than 4 bytes");
+        Message::decode($this->buildStunMessage($this->rawAttribute(0x0009, "\0\0\0")));
+    }
+
+    private function buildStunMessage(string $attributes): string
+    {
+        // BINDING REQUEST header: type, body length, magic cookie, 12-byte transaction id.
+        return pack("n", 0x0001) . pack("n", strlen($attributes))
+            . pack("N", MessageAttributeEncoder::COOKIE)
+            . "transaction!"
+            . $attributes;
+    }
+
+    private function rawAttribute(int $type, string $value): string
+    {
+        $pad = (4 - strlen($value) % 4) % 4;
+        return pack("n", $type) . pack("n", strlen($value)) . $value . str_repeat("\0", $pad);
+    }
+
     private function getMessage($filename): false|string
     {
         return file_get_contents(__DIR__ . "/../fixture/" . $filename);
