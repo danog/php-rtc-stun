@@ -208,12 +208,17 @@ final class Message implements MessageInterface
             $value = substr($data, $pos + 4, $attrLen);
             $padLen = Utils::paddingLength($attrLen);
 
-            try {
-                [$attrName, $unpackedData] = MessageAttributeEncoder::decode($attrType, $value, $transactionId);
-                $attributes[$attrName] = $unpackedData;
-            } catch (InvalidArgumentException $e) {
-                $attrName = '';
+            // Unrecognised attribute types are comprehension-optional: skip them, as before.
+            // But a *known* attribute that fails to decode is a corrupt message and must not be
+            // silently dropped — doing so previously let a malformed FINGERPRINT or
+            // MESSAGE-INTEGRITY attribute skip the verification below and be accepted anyway.
+            if (MessageAttribute::tryFrom($attrType) === null) {
+                $pos += 4 + $attrLen + $padLen;
+                continue;
             }
+
+            [$attrName, $unpackedData] = MessageAttributeEncoder::decode($attrType, $value, $transactionId);
+            $attributes[$attrName] = $unpackedData;
 
             if ($attrName === MessageAttribute::FINGERPRINT->name && $attributes[$attrName] !== MessageIntegrity::messageFingerprint(substr($data, 0, $pos))) {
                 throw new InvalidArgumentException("STUN message fingerprint does not match");
