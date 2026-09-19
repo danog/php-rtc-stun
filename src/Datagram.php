@@ -98,9 +98,43 @@ abstract class Datagram extends BaseProtocol
         }
         SerializableState::import($this, $data);
         if ($bindHost !== null && $bindPort !== null) {
-            $this->socket = bindUdpSocket(new InternetAddress($bindHost, $bindPort), self::udpBindContext());
+            $this->socket = self::rebind($bindHost, $bindPort);
             $this->listen();
         }
+    }
+
+    /**
+     * Rebind the datagram socket when resuming a serialized connection. The exact local address saved
+     * before the restart may no longer be assignable — a temporary/privacy IPv6 address rotates, a
+     * DHCP lease changed, an interface went down — which previously made a bind failure abort the whole
+     * session's deserialization. Fall back to the same port on the matching wildcard address (so the
+     * transport keeps its port), and finally to any free port, so a resume never fatals.
+     */
+    private static function rebind(string $host, int $port): UdpSocket
+    {
+        $context = self::udpBindContext();
+        $wildcard = str_contains($host, ':') ? '[::]' : '0.0.0.0';
+        foreach (["$host:$port", "$wildcard:$port", "$wildcard:0"] as $address) {
+            try {
+                return bindUdpSocket(new InternetAddress(...self::splitAddress($address)), $context);
+            } catch (Throwable) {
+                // Try the next, more permissive, bind target.
+            }
+        }
+        return bindUdpSocket(new InternetAddress('0.0.0.0', 0), $context);
+    }
+
+    /**
+     * Split a "host:port" (host possibly a bracketed IPv6) into [host, port] for InternetAddress.
+     *
+     * @return array{0: string, 1: int}
+     */
+    private static function splitAddress(string $address): array
+    {
+        $pos = strrpos($address, ':');
+        $host = substr($address, 0, $pos);
+        $port = (int) substr($address, $pos + 1);
+        return [trim($host, '[]'), $port];
     }
 
     /**
