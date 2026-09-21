@@ -116,7 +116,8 @@ abstract class Datagram extends BaseProtocol
         $wildcard = str_contains($host, ':') ? '[::]' : '0.0.0.0';
         foreach (["$host:$port", "$wildcard:$port", "$wildcard:0"] as $address) {
             try {
-                return bindUdpSocket(new InternetAddress(...self::splitAddress($address)), $context);
+                [$host2, $port2] = self::splitAddress($address);
+                return bindUdpSocket(new InternetAddress($host2, $port2), $context);
             } catch (Throwable) {
                 // Try the next, more permissive, bind target.
             }
@@ -127,13 +128,16 @@ abstract class Datagram extends BaseProtocol
     /**
      * Split a "host:port" (host possibly a bracketed IPv6) into [host, port] for InternetAddress.
      *
-     * @return array{0: string, 1: int}
+     * @return array{0: string, 1: int<0, 65535>}
      */
     private static function splitAddress(string $address): array
     {
         $pos = strrpos($address, ':');
+        if ($pos === false) {
+            return [trim($address, '[]'), 0];
+        }
         $host = substr($address, 0, $pos);
-        $port = (int) substr($address, $pos + 1);
+        $port = max(0, min(65535, (int) substr($address, $pos + 1)));
         return [trim($host, '[]'), $port];
     }
 
