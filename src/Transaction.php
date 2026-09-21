@@ -196,6 +196,10 @@ final class Transaction implements TransactionInterface
         /** @var DeferredFuture<array{MessageInterface, InternetAddress|null}> $deferred */
         $deferred = new DeferredFuture();
         $this->deferred = $deferred;
+        // Nobody awaits a restored transaction: the fiber that called execute() did not survive the
+        // serialization. Its outcome (typically a timeout, when the retries were already exhausted)
+        // must not surface as an unhandled future error and kill the process on garbage collection.
+        $deferred->getFuture()->ignore();
         $this->timer = null;
         if (!$this->isResolvedOrReject) {
             $this->trySend();
