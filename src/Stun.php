@@ -39,6 +39,14 @@ final class Stun extends Datagram implements StunInterface
     private string $id;
 
     /**
+     * The receiver of the messages, which owns this protocol: not owned by it, so that a pending
+     * request doesn't keep the receiver alive.
+     *
+     * @var \WeakReference<ReceiverInterface>|null
+     */
+    private ?\WeakReference $receiver;
+
+    /**
      * Constructor
      *
      * @param ReceiverInterface $receiver Message receiver handler
@@ -46,12 +54,38 @@ final class Stun extends Datagram implements StunInterface
      * @param LoggerInterface|null $logger Optional PSR-3 logger
      */
     public function __construct(
-        private readonly ReceiverInterface $receiver,
+        ReceiverInterface $receiver,
         UdpSocket $socket,
         private readonly ?LoggerInterface $logger = null
     ) {
+        $this->receiver = \WeakReference::create($receiver);
         parent::__construct($socket);
         $this->id = Uuid::uuid4()->toString();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    #[\Override]
+    public function __serialize(): array
+    {
+        $data = parent::__serialize();
+        $data[self::class . "\0receiver"] = $this->receiver?->get();
+
+        return $data;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    #[\Override]
+    public function __unserialize(array $data): void
+    {
+        $key = self::class . "\0receiver";
+        // Before the socket is listened to again.
+        $this->receiver = isset($data[$key]) && $data[$key] instanceof ReceiverInterface ? \WeakReference::create($data[$key]) : null;
+        unset($data[$key]);
+        parent::__unserialize($data);
     }
 
 
@@ -73,7 +107,7 @@ final class Stun extends Datagram implements StunInterface
         } else {
             $candidate = $this->getCandidate();
             if ($candidate !== null) {
-                $this->receiver->onDataReceived($data, $candidate->getComponentId());
+                $this->receiver?->get()?->onDataReceived($data, $candidate->getComponentId());
             }
         }
     }
@@ -122,7 +156,7 @@ final class Stun extends Datagram implements StunInterface
             $transaction = $this->transactionIds[$transactionId];
             $transaction->responseReceived($message, $address);
         } elseif ($messageClass === MessageClass::REQUEST) {
-            $this->receiver->onRequestReceived($message, $address, $this, $data);
+            $this->receiver?->get()?->onRequestReceived($message, $address, $this, $data);
         }
     }
 
@@ -135,7 +169,7 @@ final class Stun extends Datagram implements StunInterface
     #[\Override]
     protected function onError(Throwable $e): void
     {
-        $this->receiver->onError($e);
+        $this->receiver?->get()?->onError($e);
     }
 
     /**
@@ -146,7 +180,7 @@ final class Stun extends Datagram implements StunInterface
     #[\Override]
     protected function onClose(): void
     {
-        $this->receiver->onClose();
+        $this->receiver?->get()?->onClose($this);
     }
 
     /**
