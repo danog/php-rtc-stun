@@ -49,6 +49,26 @@ class TransactionTest extends TestCase
         $transaction->execute();
     }
 
+    public function testTransactionTimeoutRemovesTheTransaction()
+    {
+        $message = Message::new(MessageClass::REQUEST, MessageMethod::BINDING);
+        $stun = Mockery::mock(Stun::class);
+        $stun->shouldReceive('sendMessage');
+        $removed = [];
+        $stun->shouldReceive('removeTransaction')->andReturnUsing(function (string $id) use (&$removed): void {
+            $removed[] = $id;
+        });
+        $transaction = new Transaction($message, new InternetAddress('127.0.0.1', 2365), $stun, 0);
+
+        try {
+            $transaction->execute();
+            $this->fail('Expected a TransactionTimeoutException.');
+        } catch (TransactionTimeoutException) {
+        }
+        // Kept by the transport, it would hold on to the exception and everything its trace does.
+        $this->assertSame([$message->getTransactionId()], $removed);
+    }
+
     public function testTransactionReceive()
     {
         $message = Message::new(MessageClass::RESPONSE, MessageMethod::BINDING);

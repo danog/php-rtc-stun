@@ -107,6 +107,9 @@ final class Transaction implements TransactionInterface
     {
         if ($this->tries >= $this->triesMax) {
             $this->settle();
+            // Like an answered transaction: kept by the transport, it would hold on to the exception and so to everything
+            // its trace does, for as long as the transport lives.
+            $this->transport->removeTransaction($this->message->getTransactionId());
             $this->deferred->error(new TransactionTimeoutException);
 
             return;
