@@ -28,11 +28,11 @@ interface MessageInterface
 
     public function getMessageMethod(): MessageMethod;
 
-    public function addMessageIntegrity(string $key): void;
+    public function addMessageIntegrity(#[\SensitiveParameter] string $key): void;
 
     public function encode(): string;
 
-    public static function decode(string $data, ?string $integrityKey): static;
+    public static function decode(string $data, #[\SensitiveParameter] ?string $integrityKey): static;
 
     public function humanReadable(): string;
 
@@ -41,5 +41,5 @@ interface MessageInterface
     /**
      * @param array<string, InternetAddress|array<array-key, mixed>|int|string|null> $attributes
      */
-    public static function new(MessageClass $messageClass, MessageMethod $messageMethod, array $attributes = [], ?string $integrityKey = null): MessageInterface;
+    public static function new(MessageClass $messageClass, MessageMethod $messageMethod, array $attributes = [], #[\SensitiveParameter] ?string $integrityKey = null): MessageInterface;
 }
