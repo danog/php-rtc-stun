@@ -145,6 +145,18 @@ final class Message implements MessageInterface
     }
 
     /**
+     * Whether a datagram is a STUN message, and not one of the other protocols multiplexed on the same
+     * socket (DTLS, RTP/RTCP, TURN ChannelData): its first byte is 0-3 (RFC 7983) and it has the magic
+     * cookie of RFC 5389. Cheap enough for every datagram: only STUN messages need to be decoded.
+     */
+    public static function isStun(string $data): bool
+    {
+        return \strlen($data) >= MessageIntegrity::HEADER_LENGTH
+            && \ord($data[0]) < 4
+            && substr_compare($data, "\x21\x12\xA4\x42", 4, 4) === 0;
+    }
+
+    /**
      * Decode a message from bytes.
      *
      * @param string $data The message data.
