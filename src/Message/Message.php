@@ -101,7 +101,7 @@ final class Message implements MessageInterface
      * @param string $key The key for HMAC.
      */
     #[\Override]
-    public function addMessageIntegrity(string $key): void
+    public function addMessageIntegrity(#[\SensitiveParameter] string $key): void
     {
         $this->_attributes->add(MessageAttribute::MESSAGE_INTEGRITY, MessageIntegrity::messageIntegrity($this->encode(), $key));
         $this->_attributes->add(MessageAttribute::FINGERPRINT, MessageIntegrity::messageFingerprint($this->encode()));
@@ -145,6 +145,18 @@ final class Message implements MessageInterface
     }
 
     /**
+     * Whether a datagram is a STUN message, and not one of the other protocols multiplexed on the same
+     * socket (DTLS, RTP/RTCP, TURN ChannelData): its first byte is 0-3 (RFC 7983) and it has the magic
+     * cookie of RFC 5389. Cheap enough for every datagram: only STUN messages need to be decoded.
+     */
+    public static function isStun(string $data): bool
+    {
+        return \strlen($data) >= MessageIntegrity::HEADER_LENGTH
+            && \ord($data[0]) < 4
+            && substr_compare($data, "\x21\x12\xA4\x42", 4, 4) === 0;
+    }
+
+    /**
      * Decode a message from bytes.
      *
      * @param string $data The message data.
@@ -154,7 +166,7 @@ final class Message implements MessageInterface
      * @throws RandomException
      */
     #[\Override]
-    public static function decode(string $data, ?string $integrityKey = null): static
+    public static function decode(string $data, #[\SensitiveParameter] ?string $integrityKey = null): static
     {
         if (strlen($data) < MessageIntegrity::HEADER_LENGTH) {
             throw new InvalidArgumentException("STUN message length is less than 20 bytes");
@@ -191,7 +203,7 @@ final class Message implements MessageInterface
      * @param string|null $integrityKey
      * @return array<string, InternetAddress|array<array-key, mixed>|int|string|null>
      */
-    private static function getDecodedAttributes(string $data, string $transactionId, ?string $integrityKey): array
+    private static function getDecodedAttributes(string $data, string $transactionId, #[\SensitiveParameter] ?string $integrityKey): array
     {
         $attributes = [];
         $pos = MessageIntegrity::HEADER_LENGTH;
@@ -246,7 +258,7 @@ final class Message implements MessageInterface
      * @throws RandomException
      */
     #[\Override]
-    public static function new(MessageClass $messageClass, MessageMethod $messageMethod, array $attributes = [], ?string $integrityKey = null): MessageInterface
+    public static function new(MessageClass $messageClass, MessageMethod $messageMethod, array $attributes = [], #[\SensitiveParameter] ?string $integrityKey = null): MessageInterface
     {
         $message = new static($messageClass, $messageMethod);
         $message->attributes()->merge($attributes);

@@ -4,6 +4,7 @@ namespace Tests\Webrtc\STUN\Message;
 
 use Amp\Socket\InternetAddress;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use Webrtc\Exception\InvalidArgumentException;
@@ -17,7 +18,7 @@ use Webrtc\STUN\Utils;
 
 #[UsesClass(MessageAttributeCollection::class)]
 #[UsesClass(MessageAttributeEncoder::class)]
-#[UsesClass(MessageIntegrity::class)]
+#[CoversClass(MessageIntegrity::class)]
 #[UsesClass(Utils::class)]
 #[UsesClass(\Webrtc\STUN\Enum\MessageAttribute::class)]
 #[CoversClass(Message::class)]
@@ -177,6 +178,56 @@ class MessageTest extends TestCase
     {
         $pad = (4 - strlen($value) % 4) % 4;
         return pack("n", $type) . pack("n", strlen($value)) . $value . str_repeat("\0", $pad);
+    }
+
+    public function testOnlyStunMessagesAreRecognized(): void
+    {
+        foreach (["binding_request.bin", "binding_request_ice_controlled.bin", "binding_response.bin"] as $fixture) {
+            $this->assertTrue(Message::isStun($this->getMessage($fixture)), $fixture);
+        }
+        $stun = $this->getMessage("binding_request.bin");
+        // RTP and RTCP (128-191), DTLS (20-63), TURN ChannelData (64-79), with a cookie in the right place too.
+        foreach ([0x80, 0xC8, 0x16, 0x17, 0x40, 0x4F] as $firstByte) {
+            $this->assertFalse(Message::isStun(\chr($firstByte).substr($stun, 1)), "first byte $firstByte");
+        }
+        $this->assertFalse(Message::isStun(substr($stun, 0, 4)."\0\0\0\0".substr($stun, 8)), "no magic cookie");
+        $this->assertFalse(Message::isStun(substr($stun, 0, 19)), "shorter than a header");
+        $this->assertFalse(Message::isStun(''));
+
+        // A malformed STUN message is still recognized as one, and decoding it still throws.
+        $malformed = $stun.'x';
+        $this->assertTrue(Message::isStun($malformed));
+        $this->expectException(InvalidArgumentException::class);
+        Message::decode($malformed);
+    }
+
+    /** @return iterable<string, array{bool}> */
+    public static function integrityBackends(): iterable
+    {
+        yield 'hash extension' => [false];
+        if (\extension_loaded('madeline_crypto') && version_compare(\danog\MadelineProto\Native\Crypto::version(), '0.5.0', '>=')) {
+            yield 'madeline_crypto' => [true];
+        }
+    }
+
+    #[DataProvider('integrityBackends')]
+    public function testIntegrityIsAnHmacSha1(bool $native): void
+    {
+        MessageIntegrity::$native = $native;
+        try {
+            // The length field covers the attribute.
+            foreach ([0, 1, 64, 300] as $length) {
+                $body = $length ? random_bytes($length) : '';
+                $key = random_bytes(16);
+                $data = "\x00\x01".pack('n', $length)."\x21\x12\xA4\x42".random_bytes(12).$body;
+                $this->assertSame(
+                    hash_hmac('sha1', substr($data, 0, 2).pack('n', $length + 24).substr($data, 4), $key, true),
+                    MessageIntegrity::messageIntegrity($data, $key),
+                );
+            }
+        } finally {
+            MessageIntegrity::$native = null;
+        }
     }
 
     private function getMessage($filename): false|string

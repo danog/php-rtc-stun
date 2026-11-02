@@ -102,7 +102,8 @@ final class Stun extends Datagram implements StunInterface
     #[\Override]
     protected function onReceived(string $data, InternetAddress $peerAddress): void
     {
-        if ($message = $this->decodeMessage($data)) {
+        // Most datagrams are media (RTP/RTCP, DTLS): decoding them as STUN would only throw.
+        if (Message::isStun($data) && $message = $this->decodeMessage($data)) {
             $this->handleMessage($message, $peerAddress, $data);
         } else {
             $candidate = $this->getCandidate();

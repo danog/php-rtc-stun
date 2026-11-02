@@ -25,5 +25,5 @@ interface RequestInterface
      *
      * @return array{MessageInterface, InternetAddress|null} The response and where it came from.
      */
-    public function request(MessageInterface $message, ?InternetAddress $address, ?string $integrity_key, int $retransmissions = 0): array;
+    public function request(MessageInterface $message, ?InternetAddress $address, #[\SensitiveParameter] ?string $integrity_key, int $retransmissions = 0): array;
 }

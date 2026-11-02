@@ -64,7 +64,7 @@ trait Request
     public function request(
         MessageInterface $message,
         ?InternetAddress $address = null,
-        ?string $integrity_key = null,
+        #[\SensitiveParameter] ?string $integrity_key = null,
         int $retransmissions = 0
     ): array {
         if (isset($this->transactionIds[$message->getTransactionId()])) {

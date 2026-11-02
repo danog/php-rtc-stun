@@ -18,6 +18,7 @@ use Amp\Socket\UdpSocket;
 use Throwable;
 use Webrtc\Exception\InvalidArgumentException;
 use Webrtc\Mixin\SerializableState;
+use Webrtc\STUN\Message\Message;
 use function Amp\async;
 use function Amp\Socket\bindUdpSocket;
 
@@ -158,7 +159,8 @@ abstract class Datagram extends BaseProtocol
         // closes the socket, which unblocks receive() and lets this fiber unwind.
         $weak = \WeakReference::create($this);
         $socket = $this->socket;
-        async(static function () use ($weak, $socket): void {
+        $dispatcher = new DatagramDispatcher(static fn (string $data, InternetAddress $address) => $weak->get()?->onReceived($data, $address));
+        async(static function () use ($weak, $socket, $dispatcher): void {
             try {
                 while (true) {
                     $received = $socket->receive();
@@ -205,16 +207,25 @@ abstract class Datagram extends BaseProtocol
                     if ($self->paused) {
                         continue;
                     }
-                    // Dispatch in its own fiber. Handling a datagram can block — answering a
-                    // binding request may itself start a transaction and wait for its reply —
-                    // and doing that inline stops this loop from reading, so the very replies
-                    // being waited on never arrive and every transaction times out.
-                    async(static fn () => $weak->get()?->onReceived($data, $address))->ignore();
                     unset($self);
+                    // Never inline: handling a datagram can block — answering a binding request
+                    // may itself start a transaction and wait for its reply — and doing that here
+                    // stops this loop from reading, so the very replies being waited on never
+                    // arrive and every transaction times out.
+                    if (Message::isStun($data)) {
+                        // In its own fiber.
+                        async(static fn () => $weak->get()?->onReceived($data, $address))->ignore();
+                    } else {
+                        // Media (RTP/RTCP, DTLS, TURN ChannelData), most datagrams: in a fiber that
+                        // is kept for the next ones, instead of a new fiber for each.
+                        $dispatcher->dispatch($data, $address);
+                    }
                 }
 
+                $dispatcher->stop();
                 $weak->get()?->onClose();
             } catch (Throwable $e) {
+                $dispatcher->stop();
                 $weak->get()?->onError($e);
             }
         });
